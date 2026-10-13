@@ -14,10 +14,12 @@ import {
   Zap,
   Layers
 } from 'lucide-react';
-import { HardwareConfig, HardwareFailuresConfig } from '../types/installer';
+import { HardwareConfig, HardwareFailuresConfig, OSType } from '../types/installer';
+import { RAM_CRITICAL_MB, RAM_LOW_MB } from '../utils/partitionValidator';
 import { useTheme } from '../context/ThemeContext';
 
 interface HardwareChaosInjectorProps {
+  osType: OSType;
   hardware: HardwareConfig;
   onChangeHardware: (updated: Partial<HardwareConfig>) => void;
 }
@@ -67,7 +69,8 @@ const FAILURE_CATALOG = [
 
 export const HardwareChaosInjector: React.FC<HardwareChaosInjectorProps> = ({
   hardware,
-  onChangeHardware
+  onChangeHardware,
+  osType
 }) => {
   const { theme } = useTheme();
   const isLight = theme === 'light';
@@ -79,8 +82,9 @@ export const HardwareChaosInjector: React.FC<HardwareChaosInjectorProps> = ({
     thermalThrottling: false
   };
 
-  const isLowRam = hardware.ramMB < 2048;
-  const isMarginalRam = hardware.ramMB >= 2048 && hardware.ramMB < 4096;
+  const ramCriticalMB = RAM_CRITICAL_MB[osType];
+  const isLowRam = hardware.ramMB < ramCriticalMB;
+  const isMarginalRam = hardware.ramMB >= ramCriticalMB && hardware.ramMB < RAM_LOW_MB;
 
   const countActiveFailures = 
     (currentFailures.badSectors ? 1 : 0) +
@@ -129,7 +133,7 @@ export const HardwareChaosInjector: React.FC<HardwareChaosInjectorProps> = ({
       },
       () => {
         onChangeHardware({
-          ramMB: 1024, // RAM insuficiente extrema
+          ramMB: 512, // RAM insuficiente extrema (crítica en Linux y Windows)
           failures: { ...currentFailures }
         });
       },
@@ -151,7 +155,7 @@ export const HardwareChaosInjector: React.FC<HardwareChaosInjectorProps> = ({
       () => {
         // Doble fallo simultáneo (caos avanzado: disco + ram)
         onChangeHardware({
-          ramMB: 1024,
+          ramMB: 512,
           failures: { ...currentFailures, badSectors: true }
         });
       }
@@ -226,9 +230,9 @@ export const HardwareChaosInjector: React.FC<HardwareChaosInjectorProps> = ({
 
       {/* Grid de Fallos Conmutables */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-3">
-        {/* FALLO ESPECIAL 1: Falta severa de RAM (< 2048 MB) */}
+        {/* FALLO ESPECIAL 1: Falta severa de RAM (512 MB, crítico para cualquier SO) */}
         <div 
-          onClick={() => onChangeHardware({ ramMB: isLowRam ? 8192 : 1024 })}
+          onClick={() => onChangeHardware({ ramMB: isLowRam ? 8192 : 512 })}
           className={`p-3 rounded-lg border cursor-pointer transition-all flex flex-col justify-between select-none ${
             isLowRam
               ? 'bg-rose-950/40 border-rose-500 text-rose-200 ring-1 ring-rose-500/50 shadow-md'
@@ -239,19 +243,19 @@ export const HardwareChaosInjector: React.FC<HardwareChaosInjectorProps> = ({
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1.5 font-bold text-xs text-white">
                 <Cpu className={`w-3.5 h-3.5 ${isLowRam ? 'text-rose-400' : 'text-slate-400'}`} />
-                <span>Memoria RAM Insuficiente (1 GB)</span>
+                <span>Memoria RAM Insuficiente (512 MB)</span>
               </div>
               <span className={`w-2.5 h-2.5 rounded-full ${isLowRam ? 'bg-rose-500 animate-pulse' : 'bg-slate-700'}`} />
             </div>
             <p className="text-[11px] text-slate-400 leading-snug">
-              Reduce la memoria RAM física a solo <strong>1024 MB</strong>. Provoca bloqueo OOM durante initramfs o carga del kernel.
+              Reduce la memoria RAM física a solo <strong>512 MB</strong>. Provoca bloqueo OOM durante initramfs o carga del kernel.
             </p>
           </div>
 
           <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-slate-800/80 text-[10px] font-mono">
-            <span className="text-slate-500">Estado: {hardware.ramMB / 1024} GB asignados</span>
+            <span className="text-slate-500">Estado: {hardware.ramMB >= 1024 ? `${hardware.ramMB / 1024} GB` : `${hardware.ramMB} MB`} asignados</span>
             <span className={isLowRam ? 'text-rose-400 font-bold' : 'text-slate-400'}>
-              {isLowRam ? 'CRÍTICO (< 2 GB)' : 'Normal'}
+              {isLowRam ? `CRÍTICO (< ${ramCriticalMB / 1024} GB)` : 'Normal'}
             </span>
           </div>
         </div>

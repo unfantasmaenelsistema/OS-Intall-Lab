@@ -136,39 +136,44 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
     ];
 
     let currentIdx = 0;
+    let finishTimer: ReturnType<typeof setTimeout> | undefined;
     const interval = setInterval(() => {
       if (currentIdx < kernelBootMessages.length) {
-        setVerboseLogs(prev => [...prev, kernelBootMessages[currentIdx]]);
+        const line = kernelBootMessages[currentIdx];
+        setVerboseLogs(prev => [...prev, line]);
         setBootProgressPct(Math.floor(((currentIdx + 1) / kernelBootMessages.length) * 100));
         currentIdx++;
       } else {
         clearInterval(interval);
-        setTimeout(() => {
+        finishTimer = setTimeout(() => {
           setPhase('login_screen');
         }, 1200);
       }
     }, 180);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (finishTimer) clearTimeout(finishTimer);
+    };
   }, [phase, editedCmdline, state]);
 
   // Simulación del arranque silencioso con splash
   useEffect(() => {
     if (phase !== 'kernel_splash_boot') return;
 
+    // Updater puro: solo calcula el porcentaje; la transición la gestiona el efecto siguiente
     const interval = setInterval(() => {
-      setBootProgressPct(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setPhase('login_screen'), 800);
-          return 100;
-        }
-        return prev + 15;
-      });
+      setBootProgressPct(prev => Math.min(prev + 15, 100));
     }, 250);
 
     return () => clearInterval(interval);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'kernel_splash_boot' || bootProgressPct < 100) return;
+    const timer = setTimeout(() => setPhase('login_screen'), 800);
+    return () => clearTimeout(timer);
+  }, [phase, bootProgressPct]);
 
   // Manejo de inicio de sesión
   const handleLogin = (e: React.FormEvent) => {
@@ -339,7 +344,7 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
           </form>
 
           <div className="p-3 bg-slate-900 border border-slate-800 rounded text-[11px] text-slate-400">
-            Foco Formativo: Este es el prompt real de initramfs (dracut) que solicita la clave para derivar la master key mediante Argon2id antes de montar la raíz.
+            Foco Formativo: Este es el prompt real de initramfs (dracut) que solicita la clave para derivar la master key (Argon2id o PBKDF2, según el keyslot) antes de montar la raíz.
           </div>
         </div>
       )}

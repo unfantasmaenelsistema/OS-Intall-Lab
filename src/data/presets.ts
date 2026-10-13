@@ -195,7 +195,7 @@ export const PARTITION_PRESETS: PartitionPreset[] = [
             mountPoint: '/',
             fsType: 'btrfs',
             sizeMB: rootSize,
-            description: 'Subvolumen raíz @ con compresión zstd e instantáneas'
+            description: 'Raíz Btrfs (admite subvolumen @, compresión zstd e instantáneas)'
           },
           {
             id: 'part-3',
@@ -203,7 +203,7 @@ export const PARTITION_PRESETS: PartitionPreset[] = [
             mountPoint: '/home',
             fsType: 'btrfs',
             sizeMB: homeSize,
-            description: 'Subvolumen @home para datos de usuario con snapshots'
+            description: 'Partición Btrfs independiente para /home con snapshots propios'
           },
           {
             id: 'part-4',

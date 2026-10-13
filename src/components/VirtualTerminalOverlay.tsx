@@ -16,6 +16,7 @@ import {
   Tv
 } from 'lucide-react';
 import { InstallerState } from '../types/installer';
+import { computeDiskLayout, lvSizeSpec, partedEnd } from '../utils/diskLayout';
 
 export type TerminalTheme = 'dark_modern' | 'classic_crt' | 'matrix_green';
 
@@ -153,6 +154,10 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     const list: ShellCommandEntry[] = [];
     const t = (sec: number) => `00:00:${sec < 10 ? '0' + sec : sec}`;
     let sec = 1;
+    const layout = computeDiskLayout(state.disk, state.useLvm, state.useWholeDiskEncryption, state.lvmGroupName);
+    const devFor = (p: { id: string; name: string }) => layout.deviceFor[p.id] || p.name;
+    const luksDev = layout.luksBacking?.device ?? state.disk.devicePath;
+    const rootItem = state.disk.partitions.find(p => p.mountPoint === '/');
 
     // 1. Particionamiento
     list.push({
@@ -168,16 +173,15 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       exitCode: 0
     });
 
-    state.disk.partitions.forEach((p, idx) => {
-      const partNum = idx + 1;
-      const partFs = p.fsType === 'vfat' ? 'fat32' : p.fsType === 'swap' ? 'linux-swap' : 'ext4';
-      const startMB = idx * 1024;
-      const endMB = startMB + p.sizeMB;
+    layout.physical.forEach(pp => {
+      const partNum = pp.number;
+      const startMB = pp.startMiB;
+      const endMB = pp.endMiB;
 
       list.push({
         id: `cmd-parted-${partNum}`,
         timestamp: t(sec++),
-        command: `parted -s -a optimal ${state.disk.devicePath} mkpart "${p.mountPoint || 'data'}" ${partFs} ${startMB}MiB ${endMB}MiB`,
+        command: `parted -s -a optimal ${state.disk.devicePath} mkpart ${state.disk.tableType === 'gpt' ? `"${pp.label}"` : 'primary'}${pp.partedFs ? ` ${pp.partedFs}` : ''} ${startMB}MiB ${partedEnd(pp)}`,
         output: [
           `Aligned partition ${partNum} on 4096-byte hardware sector boundaries (LBA ${startMB * 2048} - ${endMB * 2048}).`
         ],
@@ -186,7 +190,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
         exitCode: 0
       });
 
-      if (p.flags?.includes('esp') || p.mountPoint === '/boot/efi') {
+      if (pp.source?.flags?.includes('esp') || pp.source?.mountPoint === '/boot/efi') {
         list.push({
           id: `cmd-flag-esp-${partNum}`,
           timestamp: t(sec++),
@@ -202,26 +206,27 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     });
 
     // 2. Cifrado LUKS2 si aplica
-    if (state.useWholeDiskEncryption) {
+    if (state.useWholeDiskEncryption && layout.luksBacking) {
+      const hasSeparateBoot = state.disk.partitions.some(p => p.mountPoint === '/boot');
       list.push({
         id: 'cmd-cryptsetup-format',
         timestamp: t(sec++),
-        command: `cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf argon2id ${state.disk.devicePath}p3`,
+        command: `cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf ${hasSeparateBoot ? 'argon2id' : 'pbkdf2'} ${luksDev}`,
         output: [
-          `WARNING: This will overwrite data on ${state.disk.devicePath}p3 irrevocably.`,
+          `WARNING: This will overwrite data on ${luksDev} irrevocably.`,
           `Generating LUKS2 metadata header...`,
-          `Benchmarking memory parameters for Argon2id (iterations: 4, memory: 1048576 KiB)...`,
+          hasSeparateBoot ? `Benchmarking memory parameters for Argon2id (iterations: 4, memory: 1048576 KiB)...` : `Benchmarking PBKDF2-sha512 (GRUB cryptodisk compatible)...`,
           `Key slot 0 created with 512-bit master volume key. Header size: 16 MiB.`
         ],
         category: 'crypto',
-        educationalNote: `Cifra la partición física con el estándar LUKS2 usando cifrado simétrico AES en modo XTS con clave de 512 bits. La función de derivación de claves Argon2id requiere 1 GB de RAM en el cálculo para neutralizar ataques de fuerza bruta mediante GPUs y ASICs dedicados.`,
+        educationalNote: `Cifra la partición física con el estándar LUKS2 usando cifrado simétrico AES en modo XTS con clave de 512 bits. ${hasSeparateBoot ? "La función de derivación Argon2id requiere 1 GB de RAM en el cálculo para neutralizar ataques de fuerza bruta mediante GPUs y ASICs dedicados." : "Se usa PBKDF2 porque /boot queda dentro del volumen cifrado y GRUB no sabe derivar claves Argon2id: con Argon2id el sistema no arrancaría."}`,
         exitCode: 0
       });
 
       list.push({
         id: 'cmd-cryptsetup-open',
         timestamp: t(sec++),
-        command: `cryptsetup open --type luks2 ${state.disk.devicePath}p3 cryptroot`,
+        command: `cryptsetup open --type luks2 ${luksDev} cryptroot`,
         output: [
           `Key slot 0 unlocked.`,
           `Created device-mapper virtual block device: /dev/mapper/cryptroot [MAJOR=253, MINOR=0].`
@@ -234,7 +239,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
 
     // 3. LVM si aplica
     if (state.useLvm && state.osType === 'linux') {
-      const pvDev = state.useWholeDiskEncryption ? '/dev/mapper/cryptroot' : `${state.disk.devicePath}p3`;
+      const pvDev = layout.pvDevice ?? `${luksDev}`;
 
       list.push({
         id: 'cmd-pvcreate',
@@ -266,10 +271,10 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
         list.push({
           id: `cmd-lvcreate-${lvName}`,
           timestamp: t(sec++),
-          command: `lvcreate -L ${lv.sizeMB}M -n ${lvName} ${state.lvmGroupName}`,
+          command: `lvcreate -y ${lvSizeSpec(layout, lv)} -n ${lvName} ${state.lvmGroupName}`,
           output: [
             `Logical volume "${lvName}" created [Size: ${(lv.sizeMB / 1024).toFixed(1)} GiB, Extents: ${Math.ceil(lv.sizeMB / 4)}].`,
-            `Mapped device node: /dev/mapper/${state.lvmGroupName}-${lvName}`
+            `Mapped device node: ${layout.deviceFor[lv.id]}`
           ],
           category: 'lvm',
           educationalNote: `Crea el Logical Volume '${lvName}'. A diferencia de una partición fija, este volumen se puede extender en caliente con el comando 'lvextend' mientras el sistema está encendido si el disco se llena.`,
@@ -280,7 +285,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
 
     // 4. Formateo de sistemas de archivos
     state.disk.partitions.forEach(p => {
-      const dev = p.isLvmLV ? `/dev/mapper/${state.lvmGroupName}-${p.lvmLVName}` : p.name;
+      const dev = devFor(p);
 
       if (p.fsType === 'ext4') {
         list.push({
@@ -366,7 +371,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     list.push({
       id: 'cmd-mount-root',
       timestamp: t(sec++),
-      command: `mount -o defaults,noatime ${state.useLvm ? `/dev/mapper/${state.lvmGroupName}-lv_root` : `${state.disk.devicePath}p2`} /mnt`,
+      command: `mount -o defaults,noatime ${rootItem ? devFor(rootItem) : state.disk.devicePath} /mnt`,
       output: [
         `Mounted target root filesystem to /mnt directory.`
       ],
@@ -428,9 +433,9 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       list.push({
         id: 'cmd-fail-bad-sectors',
         timestamp: t(sec++),
-        command: `dd if=/dev/zero of=${state.disk.devicePath}p2 bs=4k count=100 conv=fdatasync`,
+        command: `dd if=/dev/zero of=${rootItem ? devFor(rootItem) : state.disk.devicePath} bs=4k count=100 conv=fdatasync`,
         output: [
-          `dd: error writing '${state.disk.devicePath}p2': Input/output error`,
+          `dd: error writing '${rootItem ? devFor(rootItem) : state.disk.devicePath}': Input/output error`,
           `[kernel] blk_update_request: I/O error, dev nvme0n1, sector 4145674 op 0x1:(WRITE) flags 0x800`,
           `Command failed with exit code 5 (EIO: Input/Output Error)`
         ],

@@ -162,95 +162,98 @@ export const HardwareDiagnostics: React.FC<HardwareDiagnosticsProps> = ({
   const assessment = assessStability();
 
   // Bucle de simulación del test de estrés
+  const isRunning = testState === 'running_cpu' || testState === 'running_ram';
+
+  // Reloj del test: el updater solo avanza el porcentaje (debe ser puro)
   useEffect(() => {
-    if (testState !== 'running_cpu' && testState !== 'running_ram') return;
-
+    if (!isRunning) return;
     const interval = setInterval(() => {
-      setProgress(prev => {
-        const next = prev + 4;
-
-        setElapsedSec(sec => sec + 0.3);
-
-        if (testState === 'running_cpu') {
-          // Dinámica de CPU
-          setCpuLoadPct(99.4);
-          setCpuTempC(temp => {
-            const maxTemp = simulateDefect ? 97 : hardware.cpuCores >= 8 ? 84 : 72;
-            const newTemp = Math.min(maxTemp, +(temp + (simulateDefect ? 3.5 : 1.8)).toFixed(1));
-            if (newTemp >= 90) {
-              setIsThrottling(true);
-              setCpuFreqGHz(+(3.6 - (newTemp - 88) * 0.15).toFixed(2));
-            }
-            return newTemp;
-          });
-
-          if (next % 20 === 0) {
-            setTestLogs(l => [
-              ...l,
-              `[stress-ng: cpu] ${hardware.cpuCores} workers running matrix mult & fft... (temp: ${cpuTempC.toFixed(0)}°C, freq: ${cpuFreqGHz} GHz)`
-            ]);
-          }
-
-          // Transición al test de RAM si aplica
-          if (next >= 50 && testMode === 'both') {
-            setTestState('running_ram');
-            setTestLogs(l => [
-              ...l,
-              '------------------------------------------------------------',
-              '[OK] Test de CPU completado sin fallos fatales de cómputo.',
-              `[memtester] Asignando ${Math.floor(hardware.ramMB * 0.8)} MB de RAM para pruebas de bus de direcciones y patrones...`,
-              '------------------------------------------------------------'
-            ]);
-          } else if (next >= 100 && testMode === 'cpu_only') {
-            clearInterval(interval);
-            setTestState('completed');
-            setCpuLoadPct(5);
-            setTestLogs(l => [
-              ...l,
-              '[ÉXITO] Benchmark de CPU finalizado. Índice de estabilidad calculado.'
-            ]);
-            return 100;
-          }
-        } else if (testState === 'running_ram') {
-          // Dinámica de RAM
-          const maxRam = Math.floor(hardware.ramMB * 0.85);
-          setRamTestedMB(m => Math.min(maxRam, m + Math.floor(maxRam / 12)));
-          setRamThroughputGBs(+(38.4 + Math.random() * 4).toFixed(1));
-
-          if (simulateDefect && next >= 70 && ramErrorsCount === 0) {
-            setRamErrorsCount(3);
-            setTestLogs(l => [
-              ...l,
-              '[ERROR CRÍTICO] memtester: Sticking bit detected at address 0x7ffd19b480 (Bit 14 stuck high!)',
-              '[ALERTA] MCE: Machine Check Exception: Bus parity/ECC uncorrectable error logged by CPU memory controller!'
-            ]);
-          } else if (next % 16 === 0) {
-            setTestLogs(l => [
-              ...l,
-              `[memtester] Random Value & Walking 1s: tested ${ramTestedMB} MB... OK`
-            ]);
-          }
-
-          if (next >= 100) {
-            clearInterval(interval);
-            setTestState('completed');
-            setCpuLoadPct(4);
-            setTestLogs(l => [
-              ...l,
-              '============================================================',
-              `[FINALIZADO] Diagnóstico de hardware completado: Puntuación de estabilidad ${assessment.score}%.`,
-              '============================================================'
-            ]);
-            return 100;
-          }
-        }
-
-        return next;
-      });
+      setProgress(prev => Math.min(prev + 4, 100));
     }, 280);
-
     return () => clearInterval(interval);
-  }, [testState, testMode, simulateDefect, hardware, cpuTempC, cpuFreqGHz, ramTestedMB, ramErrorsCount, assessment.score]);
+  }, [isRunning]);
+
+  // Efectos de cada avance del test (telemetría, logs y transiciones de fase)
+  useEffect(() => {
+    if (!isRunning || progress === 0) return;
+    const next = progress;
+
+    setElapsedSec(sec => sec + 0.3);
+
+    if (testState === 'running_cpu') {
+      // Dinámica de CPU
+      setCpuLoadPct(99.4);
+      setCpuTempC(temp => {
+        const maxTemp = simulateDefect ? 97 : hardware.cpuCores >= 8 ? 84 : 72;
+        return Math.min(maxTemp, +(temp + (simulateDefect ? 3.5 : 1.8)).toFixed(1));
+      });
+
+      if (next % 20 === 0) {
+        setTestLogs(l => [
+          ...l,
+          `[stress-ng: cpu] ${hardware.cpuCores} workers running matrix mult & fft... (temp: ${cpuTempC.toFixed(0)}°C, freq: ${cpuFreqGHz} GHz)`
+        ]);
+      }
+
+      // Transición al test de RAM si aplica
+      if (next >= 50 && testMode === 'both') {
+        setTestState('running_ram');
+        setTestLogs(l => [
+          ...l,
+          '------------------------------------------------------------',
+          '[OK] Test de CPU completado sin fallos fatales de cómputo.',
+          `[memtester] Asignando ${Math.floor(hardware.ramMB * 0.8)} MB de RAM para pruebas de bus de direcciones y patrones...`,
+          '------------------------------------------------------------'
+        ]);
+      } else if (next >= 100 && testMode === 'cpu_only') {
+        setTestState('completed');
+        setCpuLoadPct(5);
+        setTestLogs(l => [
+          ...l,
+          '[ÉXITO] Benchmark de CPU finalizado. Índice de estabilidad calculado.'
+        ]);
+      }
+    } else if (testState === 'running_ram') {
+      // Dinámica de RAM
+      const maxRam = Math.floor(hardware.ramMB * 0.85);
+      setRamTestedMB(m => Math.min(maxRam, m + Math.floor(maxRam / 12)));
+      setRamThroughputGBs(+(38.4 + Math.random() * 4).toFixed(1));
+
+      if (simulateDefect && next >= 70 && ramErrorsCount === 0) {
+        setRamErrorsCount(3);
+        setTestLogs(l => [
+          ...l,
+          '[ERROR CRÍTICO] memtester: Sticking bit detected at address 0x7ffd19b480 (Bit 14 stuck high!)',
+          '[ALERTA] MCE: Machine Check Exception: Bus parity/ECC uncorrectable error logged by CPU memory controller!'
+        ]);
+      } else if (next % 16 === 0) {
+        setTestLogs(l => [
+          ...l,
+          `[memtester] Random Value & Walking 1s: tested ${ramTestedMB} MB... OK`
+        ]);
+      }
+
+      if (next >= 100) {
+        setTestState('completed');
+        setCpuLoadPct(4);
+        setTestLogs(l => [
+          ...l,
+          '============================================================',
+          `[FINALIZADO] Diagnóstico de hardware completado: Puntuación de estabilidad ${assessment.score}%.`,
+          '============================================================'
+        ]);
+      }
+    }
+    // Solo debe reaccionar a cada tick del reloj, no a los valores que lee
+  }, [progress]);
+
+  // Estrangulamiento térmico derivado de la temperatura
+  useEffect(() => {
+    if (cpuTempC >= 90) {
+      setIsThrottling(true);
+      setCpuFreqGHz(+(3.6 - (cpuTempC - 88) * 0.15).toFixed(2));
+    }
+  }, [cpuTempC]);
 
   const handleStartTest = () => {
     setProgress(0);

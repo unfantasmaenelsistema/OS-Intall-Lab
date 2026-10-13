@@ -1,4 +1,4 @@
-name: CI Build & Lint
+name: CI Build, Lint & Test
 
 on:
   push:
@@ -12,6 +12,7 @@ jobs:
 
     strategy:
       matrix:
+        # Vite 8 requiere Node 20.19+ o 22.12+
         node-version: [20.x, 22.x]
 
     steps:
@@ -22,13 +23,19 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+
+    # El lockfile del proyecto es bun.lock (no hay package-lock.json para npm ci)
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
 
     - name: Install dependencies
-      run: npm ci
+      run: bun install --frozen-lockfile
 
     - name: TypeScript Lint & Typecheck
-      run: npm run lint
+      run: bun run lint
+
+    - name: Unit tests
+      run: bun run test
 
     - name: Production Build
-      run: npm run build
+      run: bun run build

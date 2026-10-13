@@ -288,7 +288,7 @@ export const PartitioningStep: React.FC<PartitioningStepProps> = ({
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 leading-tight">
-                  Algoritmo: AES-XTS-PLAIN64 256/512 bit con derivación Argon2id. Se solicitará en cada arranque del sistema.
+                  Algoritmo: AES-XTS-PLAIN64 256/512 bit con derivación Argon2id (PBKDF2 si /boot queda dentro del cifrado, porque GRUB no soporta Argon2id). Se solicitará en cada arranque del sistema.
                 </p>
               </div>
             )}

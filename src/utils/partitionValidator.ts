@@ -1,5 +1,14 @@
 import { DiskDevice, HardwareConfig, OSType, ValidationIssue } from '../types/installer';
 
+/** Límite de direccionamiento de MBR con sectores de 512 bytes: 2^32 sectores = 2 TiB. */
+export const MBR_MAX_DISK_MB = 2 * 1024 * 1024;
+export const LINUX_ROOT_RECOMMENDED_MB = 20 * 1024;
+/** Mínimo oficial de Microsoft para Windows Server 2025. */
+export const WINDOWS_C_MINIMUM_MB = 32 * 1024;
+export const WINDOWS_C_RECOMMENDED_MB = 60 * 1024;
+export const RAM_CRITICAL_MB: Record<OSType, number> = { linux: 1024, windows: 2048 };
+export const RAM_LOW_MB = 4096;
+
 export function validatePartitionScheme(
   disk: DiskDevice,
   hardware: HardwareConfig,
@@ -24,9 +33,21 @@ export function validatePartitionScheme(
     });
   }
 
+  // 1.1 Límite de MBR
+  if (disk.tableType === 'mbr' && disk.totalSizeMB > MBR_MAX_DISK_MB) {
+    issues.push({
+      id: 'mbr-over-2tib',
+      type: 'error',
+      title: 'Tabla MBR en un disco de más de 2 TiB',
+      message: `El disco mide ${(disk.totalSizeMB / 1024 / 1024).toFixed(2)} TiB y MBR solo puede direccionar 2 TiB.`,
+      technicalImpact: 'MBR almacena el LBA de inicio y el tamaño de cada partición en campos de 32 bits: con sectores de 512 bytes el máximo es 2^32 × 512 B = 2 TiB. El espacio por encima de ese límite queda inaccesible.',
+      remedy: 'Usa una tabla de particiones GPT (con UEFI, o con una partición bios_grub si el firmware es BIOS).'
+    });
+  }
+
   // 2. Validación de Firmware vs Partición de Arranque
   if (hardware.firmware === 'uefi') {
-    const efiPart = partitions.find(p => p.mountPoint === '/boot/efi' || (p.flags && p.flags.includes('esp')) || (osType === 'windows' && p.flags?.includes('esp')));
+    const efiPart = partitions.find(p => p.mountPoint === '/boot/efi' || p.flags?.includes('esp'));
     
     if (!efiPart) {
       issues.push({
@@ -97,13 +118,13 @@ export function validatePartitionScheme(
         });
       }
 
-      if (rootPart.sizeMB < 10000) {
+      if (rootPart.sizeMB < LINUX_ROOT_RECOMMENDED_MB) {
         issues.push({
           id: 'root-too-small',
           type: 'warning',
           title: 'Espacio en raíz potencialmente insuficiente',
-          message: `La raíz tiene ${(rootPart.sizeMB / 1024).toFixed(1)} GB. El mínimo recomendado son 20 GB.`,
-          technicalImpact: 'Con menos de 10 GB, la caché del gestor de paquetes (apt/dnf), las imágenes initramfs del kernel y los registros de auditoría llenarán el disco rápidamente.',
+          message: `La raíz tiene ${(rootPart.sizeMB / 1024).toFixed(1)} GB. El mínimo recomendado son ${LINUX_ROOT_RECOMMENDED_MB / 1024} GB.`,
+          technicalImpact: `Por debajo de ${LINUX_ROOT_RECOMMENDED_MB / 1024} GB, la caché del gestor de paquetes (apt/dnf), las imágenes initramfs del kernel y los registros de auditoría llenarán el disco rápidamente.`,
           remedy: 'Amplía la raíz a al menos 20-30 GB.'
         });
       }
@@ -153,11 +174,11 @@ export function validatePartitionScheme(
       if (!bootPart) {
         issues.push({
           id: 'luks-without-separate-boot',
-          type: 'info',
-          title: 'Cifrado completo: /boot dentro del contenedor seguro',
+          type: 'warning',
+          title: 'Cifrado completo: /boot dentro de LUKS2 (GRUB no soporta Argon2id)',
           message: 'Todo el disco está cifrado y no has creado una partición /boot independiente fuera de LUKS.',
-          technicalImpact: 'GRUB deberá descifrar el volumen con módulos de criptografía antes de cargar el menú de inicio y el kernel. Esto añade unos segundos al tiempo de carga del firmware y requiere soporte de GRUB cryptodisk.',
-          remedy: 'Para arranques más rápidos y compatibilidad universal, es habitual tener una partición /boot de 1 GB sin cifrar para albergar vmlinuz e initramfs.'
+          technicalImpact: 'GRUB tendrá que abrir el contenedor (GRUB_ENABLE_CRYPTODISK) antes de leer el kernel, y su módulo cryptodisk no implementa Argon2id: un keyslot LUKS2 con Argon2id (el valor por defecto de cryptsetup) deja el sistema sin arranque. El simulador formatea ese keyslot con PBKDF2, que es más débil frente a ataques con GPU, y además GRUB descifra sin aceleración y el arranque se alarga varios segundos.',
+          remedy: 'Crea una partición /boot de 1 GB sin cifrar para vmlinuz e initramfs. Así el keyslot puede usar Argon2id y el desbloqueo lo hace el initramfs.'
         });
       }
     }
@@ -176,7 +197,7 @@ export function validatePartitionScheme(
 
   } else {
     // Windows Server
-    const cDrive = partitions.find(p => p.mountPoint === 'C:' || p.mountPoint === '/');
+    const cDrive = partitions.find(p => p.mountPoint === 'C:');
     if (!cDrive) {
       issues.push({
         id: 'missing-c-drive',
@@ -184,7 +205,7 @@ export function validatePartitionScheme(
         title: 'Falta partición del sistema Windows (C:)',
         message: 'Windows Server requiere una partición primaria para instalar el sistema operativo.',
         technicalImpact: 'El instalador de Windows no tiene un volumen de destino asignado para descomprimir la imagen install.wim.',
-        remedy: 'Crea una partición de al menos 40 GB formateada en NTFS con punto de montaje C:.'
+        remedy: `Crea una partición de al menos ${WINDOWS_C_RECOMMENDED_MB / 1024} GB formateada en NTFS con punto de montaje C:.`
       });
     } else {
       if (cDrive.fsType === 'refs') {
@@ -197,16 +218,37 @@ export function validatePartitionScheme(
           remedy: 'Cambia el sistema de archivos de la unidad C: a NTFS.'
         });
       }
-      if (cDrive.sizeMB < 32000) {
+      if (cDrive.sizeMB < WINDOWS_C_MINIMUM_MB) {
+        issues.push({
+          id: 'c-drive-below-minimum',
+          type: 'error',
+          title: 'Partición C: por debajo del mínimo de Windows Server',
+          message: `La partición C: mide ${(cDrive.sizeMB / 1024).toFixed(1)} GB. Microsoft exige al menos ${WINDOWS_C_MINIMUM_MB / 1024} GB.`,
+          technicalImpact: 'El programa de instalación de Windows comprueba el espacio libre antes de aplicar install.wim y se niega a continuar en volúmenes por debajo del mínimo.',
+          remedy: `Aumenta la partición C: a ${WINDOWS_C_RECOMMENDED_MB / 1024} GB o más.`
+        });
+      } else if (cDrive.sizeMB < WINDOWS_C_RECOMMENDED_MB) {
         issues.push({
           id: 'c-drive-small',
           type: 'warning',
           title: 'Partición C: reducida para Windows Server',
-          message: `La partición C: mide ${(cDrive.sizeMB / 1024).toFixed(1)} GB. El mínimo recomendado es 60 GB.`,
+          message: `La partición C: mide ${(cDrive.sizeMB / 1024).toFixed(1)} GB. El mínimo recomendado es ${WINDOWS_C_RECOMMENDED_MB / 1024} GB.`,
           technicalImpact: 'El directorio WinSxS, las actualizaciones mensuales de Windows Update y el archivo de paginación pagefile.sys consumirán rápidamente el espacio.',
-          remedy: 'Aumenta el tamaño a 60 GB o más.'
+          remedy: `Aumenta el tamaño a ${WINDOWS_C_RECOMMENDED_MB / 1024} GB o más.`
         });
       }
+    }
+
+    // MSR obligatoria en discos GPT de Windows
+    if (disk.tableType === 'gpt' && !partitions.some(p => p.flags?.includes('msr'))) {
+      issues.push({
+        id: 'windows-missing-msr',
+        type: 'warning',
+        title: 'Falta la partición reservada de Microsoft (MSR)',
+        message: 'En discos GPT, Windows espera una partición MSR de 16 MB justo después de la ESP.',
+        technicalImpact: 'La MSR reserva espacio para operaciones del sistema, como la conversión a disco dinámico o el cifrado BitLocker. Sin ella, esas operaciones pueden fallar y el instalador gráfico la crea siempre.',
+        remedy: 'Añade una partición sin formato de 16 MB con la bandera msr entre la ESP y C:.'
+      });
     }
 
     // Verificar si hay ReFS en unidad secundaria
@@ -226,20 +268,21 @@ export function validatePartitionScheme(
   // 7. Validación de Requisitos de Hardware y Detección de Fallos Físicos
   // 7.1. Falta de Memoria RAM para el Sistema Operativo
   const ramGB = hardware.ramMB / 1024;
-  if (hardware.ramMB < 2048) {
+  const ramCriticalMB = RAM_CRITICAL_MB[osType];
+  if (hardware.ramMB < ramCriticalMB) {
     issues.push({
       id: 'hw-ram-critical',
       type: 'error',
-      title: 'Memoria RAM insuficiente para la instalación (< 2 GB)',
+      title: `Memoria RAM insuficiente para la instalación (< ${ramCriticalMB / 1024} GB)`,
       message: `El host solo tiene asignados ${ramGB} GB (${hardware.ramMB} MB) de memoria RAM física.`,
       technicalImpact: 'El instalador del sistema operativo se desbordará al cargar el entorno ramdisk initramfs / WinPE. Se producirá un kernel panic por Out-of-Memory (OOM) o bloqueo completo durante la descompresión de paquetes.',
       remedy: 'Aumenta la memoria RAM asignada a al menos 4 GB o 8 GB en el Paso 1 (Hardware).'
     });
-  } else if (hardware.ramMB < 4096) {
+  } else if (hardware.ramMB < RAM_LOW_MB) {
     issues.push({
       id: 'hw-ram-low',
       type: 'warning',
-      title: 'Memoria RAM ajustada (2 GB a 4 GB)',
+      title: `Memoria RAM ajustada (${ramCriticalMB / 1024} GB a ${RAM_LOW_MB / 1024} GB)`,
       message: `El sistema dispone de ${ramGB} GB de RAM. Es el límite mínimo para entornos de producción.`,
       technicalImpact: 'La compilación de módulos del kernel en tiempo de instalación (DKMS) o la ejecución de servicios en segundo plano podría experimentar ralentizaciones significativas.',
       remedy: 'Recomendado asignar 8 GB o más si planeas instalar entornos gráficos o contenedores.'

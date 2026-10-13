@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Network, 
   Globe, 
@@ -59,6 +59,12 @@ export const NetworkStep: React.FC<NetworkStepProps> = ({
   const [testLog, setTestLog] = useState<string[]>([]);
   const [testCompleted, setTestCompleted] = useState(false);
   const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
+  const testIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Detiene la prueba en curso si el componente se desmonta (p. ej. al cambiar de paso)
+  useEffect(() => () => {
+    if (testIntervalRef.current) clearInterval(testIntervalRef.current);
+  }, []);
 
   const currentIface = config.interfaces.find(i => i.id === selectedInterfaceId) || config.interfaces[0];
 
@@ -241,6 +247,7 @@ export const NetworkStep: React.FC<NetworkStepProps> = ({
 
   // Ejecución interactiva del simulador de conectividad de red
   const runNetworkDiagnosticTest = () => {
+    if (testIntervalRef.current) clearInterval(testIntervalRef.current);
     setIsTestingLink(true);
     setTestCompleted(false);
     setTestLog([]);
@@ -270,16 +277,19 @@ export const NetworkStep: React.FC<NetworkStepProps> = ({
     let currentStep = 0;
     const interval = setInterval(() => {
       if (currentStep < steps.length) {
-        setTestLog(prev => [...prev, steps[currentStep]]);
+        const line = steps[currentStep];
+        setTestLog(prev => [...prev, line]);
         currentStep++;
       } else {
         clearInterval(interval);
+        testIntervalRef.current = null;
         setIsTestingLink(false);
         setTestCompleted(true);
         const ok = activeEffectiveConfig.hasIp && activeEffectiveConfig.hasGateway && activeEffectiveConfig.hasDns;
         setTestSuccess(ok);
       }
     }, 400);
+    testIntervalRef.current = interval;
   };
 
   // Generador de Ficheros de Configuración

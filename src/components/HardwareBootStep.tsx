@@ -15,6 +15,7 @@ import {
 import { HardwareConfig, FirmwareType, BootMediumType, OSType } from '../types/installer';
 import { HardwareDiagnostics } from './HardwareDiagnostics';
 import { HardwareChaosInjector } from './HardwareChaosInjector';
+import { RAM_CRITICAL_MB } from '../utils/partitionValidator';
 
 interface HardwareBootStepProps {
   osType: OSType;
@@ -219,22 +220,23 @@ export const HardwareBootStep: React.FC<HardwareBootStepProps> = ({
           <div className="space-y-3">
             <div>
               <label className="text-xs text-slate-400 block mb-1.5">Memoria RAM asignada:</label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {[1024, 2048, 4096, 8192, 16384, 32768].map(ram => (
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                {[512, 1024, 2048, 4096, 8192, 16384, 32768].map(ram => (
+                  // El umbral crítico depende del SO: Linux arranca con 1 GB, Windows Server necesita 2 GB
                   <button
                     key={ram}
                     type="button"
                     onClick={() => onChange({ ramMB: ram })}
                     className={`py-1.5 px-1.5 rounded-md border text-center text-xs font-mono transition-all ${
                       config.ramMB === ram
-                        ? ram < 2048
+                        ? ram < RAM_CRITICAL_MB[osType]
                           ? 'bg-rose-500/25 border-rose-400 text-rose-200 font-bold'
                           : 'bg-amber-500/20 border-amber-400 text-amber-200 font-bold'
-                        : ram < 2048
+                        : ram < RAM_CRITICAL_MB[osType]
                         ? 'bg-slate-950 border-rose-900/60 text-rose-400/80 hover:text-rose-200'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
-                    title={ram < 2048 ? 'RAM Insuficiente (< 2 GB): Provoca alerta crítica del validador' : `${ram / 1024} GB RAM`}
+                    title={ram < RAM_CRITICAL_MB[osType] ? `RAM insuficiente (< ${RAM_CRITICAL_MB[osType] / 1024} GB): provoca alerta crítica del validador` : `${ram >= 1024 ? `${ram / 1024} GB` : `${ram} MB`} RAM`}
                   >
                     {ram >= 1024 ? `${ram / 1024} GB` : `${ram} MB`}
                   </button>
@@ -337,6 +339,7 @@ export const HardwareBootStep: React.FC<HardwareBootStepProps> = ({
 
       {/* Componente de Inyección de Fallos Aleatorios e Inestabilidad de Hardware */}
       <HardwareChaosInjector
+        osType={osType}
         hardware={config}
         onChangeHardware={onChange}
       />

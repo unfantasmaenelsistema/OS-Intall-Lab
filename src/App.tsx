@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { 
   OSType, 
   InstallerStepId, 
@@ -15,16 +15,19 @@ import { EducationalDrawer } from './components/EducationalDrawer';
 import { HardwareBootStep } from './components/HardwareBootStep';
 import { LocalizationStep } from './components/LocalizationStep';
 import { SoftwareStep } from './components/SoftwareStep';
-import { NetworkStep } from './components/NetworkStep';
-import { PartitioningStep } from './components/PartitioningStep';
-import { UserConfigStep } from './components/UserConfigStep';
-import { BootloaderStep } from './components/BootloaderStep';
-import { SummaryStep } from './components/SummaryStep';
-import { InstallingStep } from './components/InstallingStep';
-import { FirstBootStep } from './components/FirstBootStep';
 import { Footer } from './components/Footer';
 import { validatePartitionScheme } from './utils/partitionValidator';
 import { PARTITION_PRESETS } from './data/presets';
+
+// Los pasos posteriores (y Recharts, usado en el particionado) se cargan bajo demanda
+// para no servir todo el simulador en un único chunk de ~1 MB.
+const NetworkStep = lazy(() => import('./components/NetworkStep').then(m => ({ default: m.NetworkStep })));
+const PartitioningStep = lazy(() => import('./components/PartitioningStep').then(m => ({ default: m.PartitioningStep })));
+const UserConfigStep = lazy(() => import('./components/UserConfigStep').then(m => ({ default: m.UserConfigStep })));
+const BootloaderStep = lazy(() => import('./components/BootloaderStep').then(m => ({ default: m.BootloaderStep })));
+const SummaryStep = lazy(() => import('./components/SummaryStep').then(m => ({ default: m.SummaryStep })));
+const InstallingStep = lazy(() => import('./components/InstallingStep').then(m => ({ default: m.InstallingStep })));
+const FirstBootStep = lazy(() => import('./components/FirstBootStep').then(m => ({ default: m.FirstBootStep })));
 
 const INITIAL_HARDWARE: HardwareConfig = {
   cpuCores: 4,
@@ -324,6 +327,7 @@ export default function App() {
 
       {/* Área de Trabajo Principal */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <Suspense fallback={<div className="py-16 text-center text-sm text-slate-400 font-mono">Cargando paso…</div>}>
         {currentStep === 'boot' && (
           <HardwareBootStep
             osType={osType}
@@ -431,6 +435,7 @@ export default function App() {
             onRestartSimulation={handleResetSimulation}
           />
         )}
+        </Suspense>
       </main>
 
       {/* Pie de Página Oficial con Logo y Enlace a www.unfantasmaenelsistema.com */}

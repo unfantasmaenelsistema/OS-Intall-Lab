@@ -27,6 +27,7 @@ import { SystemEventLog } from './SystemEventLog';
 import { HardwareFailuresControl } from './HardwareFailuresControl';
 import { RescueModeShell } from './RescueModeShell';
 import { KernelPanicScreen } from './KernelPanicScreen';
+import { computeDiskLayout, lvSizeSpec, partedEnd } from '../utils/diskLayout';
 
 interface InstallingStepProps {
   state: InstallerState;
@@ -67,6 +68,17 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
   // Si hay fallo de disco o de red, bloquea el avance del instalador de forma realista
   const isBlockedByHardware = hardwareFailures.badSectors || hardwareFailures.networkDisconnect;
 
+  // Disposición real de particiones (números, nodos de dispositivo y volúmenes lógicos)
+  const layout = computeDiskLayout(state.disk, state.useLvm, state.useWholeDiskEncryption, state.lvmGroupName);
+  const firstPart = layout.physical[0];
+  const espPart = layout.physical.find(pp => pp.source?.flags?.includes('esp') || pp.source?.mountPoint === '/boot/efi');
+  const luksDev = layout.luksBacking?.device ?? state.disk.devicePath;
+  const rootItem = state.disk.partitions.find(p => p.mountPoint === '/');
+  const rootDev = rootItem ? (layout.deviceFor[rootItem.id] || rootItem.name) : state.disk.devicePath;
+  const hasSeparateBoot = state.disk.partitions.some(p => p.mountPoint === '/boot');
+  const lvNames = layout.logicalVolumes.map(lv => lv.lvmLVName || lv.id);
+  const isUefi = state.hardware.firmware === 'uefi';
+
   // Mapeo detallado de etapas del instalador y comandos de bajo nivel ejecutados
   const installPhases = [
     {
@@ -78,20 +90,24 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
     {
       pct: 18,
       phase: 'Creando límites de particiones primarias en sectores LBA óptimos',
-      cmd: `parted -s -a optimal ${state.disk.devicePath} mkpart "EFI" fat32 1MiB 513MiB`,
+      cmd: firstPart
+        ? `parted -s -a optimal ${state.disk.devicePath} mkpart "${firstPart.label}"${firstPart.partedFs ? ` ${firstPart.partedFs}` : ''} ${firstPart.startMiB}MiB ${partedEnd(firstPart)}`
+        : `parted -s ${state.disk.devicePath} print`,
       log: `[  1.102] parted: aligned partition sectors to 4K boundary on ${state.disk.devicePath}`
     },
     {
       pct: 28,
       phase: state.useWholeDiskEncryption 
-        ? 'Inicializando contenedor cifrado dm-crypt / LUKS2 con Argon2id' 
+        ? `Inicializando contenedor cifrado dm-crypt / LUKS2 con ${hasSeparateBoot ? 'Argon2id' : 'PBKDF2 (compatible con GRUB)'}`
         : 'Configurando partición de sistema',
       cmd: state.useWholeDiskEncryption
-        ? `cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 ${state.disk.devicePath}p3`
-        : `parted -s ${state.disk.devicePath} set 1 esp on`,
+        ? `cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --pbkdf ${hasSeparateBoot ? 'argon2id' : 'pbkdf2'} ${luksDev}`
+        : espPart ? `parted -s ${state.disk.devicePath} set ${espPart.number} esp on` : `udevadm settle --timeout=30`,
       log: state.useWholeDiskEncryption
-        ? `[  2.410] cryptsetup: PBKDF argon2id benchmarked (1048576 KiB RAM), keyslot 0 created`
-        : `[  2.100] parted: partition 1 flagged with ESP`
+        ? (hasSeparateBoot
+          ? `[  2.410] cryptsetup: PBKDF argon2id benchmarked (1048576 KiB RAM), keyslot 0 created`
+          : `[  2.410] cryptsetup: PBKDF pbkdf2-sha512 benchmarked, keyslot 0 created`)
+        : espPart ? `[  2.100] parted: partition ${espPart.number} flagged with ESP` : `[  2.100] kernel: partition table re-read`
     },
     {
       pct: 38,
@@ -99,7 +115,7 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
         ? 'Abriendo volumen cifrado /dev/mapper/cryptroot'
         : 'Preparando capas de almacenamiento',
       cmd: state.useWholeDiskEncryption
-        ? `cryptsetup open ${state.disk.devicePath}p3 cryptroot`
+        ? `cryptsetup open ${luksDev} cryptroot`
         : `udevadm settle --timeout=30`,
       log: state.useWholeDiskEncryption
         ? `[  3.120] dm-crypt: mapped /dev/mapper/cryptroot`
@@ -111,28 +127,28 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
         ? `Configurando LVM: creando Physical Volume y Volume Group '${state.lvmGroupName}'` 
         : 'Creando sistemas de archivos',
       cmd: state.useLvm
-        ? `pvcreate /dev/mapper/cryptroot && vgcreate ${state.lvmGroupName} /dev/mapper/cryptroot`
-        : `mkfs.fat -F32 -n "EFI" ${state.disk.devicePath}p1`,
+        ? `pvcreate ${layout.pvDevice} && vgcreate ${state.lvmGroupName} ${layout.pvDevice}`
+        : espPart ? `mkfs.fat -F32 -n "EFI" ${espPart.device}` : `udevadm settle --timeout=30`,
       log: state.useLvm
         ? `[  4.015] lvm2: Volume Group "${state.lvmGroupName}" created with 4MB extents`
-        : `[  3.650] mkfs.fat: created FAT32 volume on ${state.disk.devicePath}p1`
+        : espPart ? `[  3.650] mkfs.fat: created FAT32 volume on ${espPart.device}` : `[  3.650] kernel: block devices ready`
     },
     {
       pct: 58,
       phase: state.useLvm
-        ? 'Aprovisionando volúmenes lógicos (lv_root, lv_var, lv_home, lv_swap)'
+        ? `Aprovisionando volúmenes lógicos (${lvNames.join(', ')})`
         : 'Formateando particiones con sistemas de archivos',
       cmd: state.useLvm
-        ? `lvcreate -L 35840M -n lv_root ${state.lvmGroupName} && lvcreate -L 8192M -n lv_swap ${state.lvmGroupName}`
-        : `mkfs.xfs -f -L "root" ${state.disk.devicePath}p2`,
+        ? layout.logicalVolumes.map(lv => `lvcreate -y ${lvSizeSpec(layout, lv)} -n ${lv.lvmLVName || lv.id} ${state.lvmGroupName}`).join(' && ')
+        : `mkfs.${rootItem?.fsType === 'ext4' || rootItem?.fsType === 'btrfs' ? rootItem.fsType : 'xfs'} -f -L "root" ${rootDev}`,
       log: state.useLvm
-        ? `[  5.230] lvm2: logical volumes lv_root, lv_home, lv_swap mapped`
+        ? `[  5.230] lvm2: logical volumes ${lvNames.join(', ')} mapped`
         : `[  4.890] mkfs.xfs: CRC32c metadatas enabled`
     },
     {
       pct: 68,
       phase: 'Formateando volúmenes con ext4, XFS y FAT32 (creación de diarios e inodos)',
-      cmd: `mkfs.xfs -f -m crc=1 /dev/mapper/${state.lvmGroupName}-lv_root`,
+      cmd: `mount ${rootDev} /mnt && mkdir -p /mnt/boot/efi`,
       log: `[  6.340] mkfs.xfs: 4 allocation groups created, reflink=1, finobt=1`
     },
     {
@@ -144,14 +160,20 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
     {
       pct: 88,
       phase: 'Generando imagen initramfs con soporte criptográfico dm-crypt y LVM',
-      cmd: `dracut --regenerate-all --force --add "crypt lvm" /mnt/boot/initramfs-linux.img`,
+      cmd: `chroot /mnt dracut --regenerate-all --force`,
       log: `[  8.940] dracut: included kernel modules for aes-ni, dm-crypt, device-mapper`
     },
     {
       pct: 95,
-      phase: 'Instalando gestor de arranque GRUB 2.06 en /boot/efi y registrando en NVRAM',
-      cmd: `grub2-install --target=x86_64-efi --efi-directory=/mnt/boot/efi --bootloader-id=rocky`,
-      log: `[  9.610] grub2-install: bootloader entry registered in UEFI firmware NVRAM`
+      phase: isUefi
+        ? 'Instalando gestor de arranque GRUB 2 en /boot/efi y registrando en NVRAM'
+        : `Instalando GRUB 2 (i386-pc) en el sector de arranque de ${state.disk.devicePath}`,
+      cmd: isUefi
+        ? `chroot /mnt grub2-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=rocky`
+        : `chroot /mnt grub2-install --target=i386-pc ${state.disk.devicePath}`,
+      log: isUefi
+        ? `[  9.610] grub2-install: bootloader entry registered in UEFI firmware NVRAM`
+        : `[  9.610] grub2-install: core.img embedded, installation finished. No error reported.`
     },
     {
       pct: 100,
@@ -169,28 +191,23 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
     const tickInterval = hardwareFailures.thermalThrottling ? 600 : 180;
 
     const interval = setInterval(() => {
-      setProgress(prev => {
-        const next = prev + 1;
-        const currentItem = installPhases.find(p => p.pct >= next) || installPhases[installPhases.length - 1];
-        if (currentItem) {
-          setCurrentPhase(currentItem.phase);
-          setCurrentCommand(currentItem.cmd);
-          if (next === currentItem.pct) {
-            setLogs(l => [...l, currentItem.log]);
-          }
-        }
-
-        if (next >= 100) {
-          clearInterval(interval);
-          setIsDone(true);
-          return 100;
-        }
-        return next;
-      });
+      setProgress(prev => Math.min(prev + 1, 100));
     }, tickInterval);
 
     return () => clearInterval(interval);
-  }, [isPaused, isDone, isBlockedByHardware, hardwareFailures.thermalThrottling, state]);
+  }, [isPaused, isDone, isBlockedByHardware, hardwareFailures.thermalThrottling]);
+
+  // Sincroniza fase, comando y logs con el progreso (fuera del updater, que debe ser puro)
+  useEffect(() => {
+    if (progress === 0) return;
+    const currentItem = installPhases.find(p => p.pct >= progress) || installPhases[installPhases.length - 1];
+    setCurrentPhase(currentItem.phase);
+    setCurrentCommand(currentItem.cmd);
+    if (progress === currentItem.pct) {
+      setLogs(l => [...l, currentItem.log]);
+    }
+    if (progress >= 100) setIsDone(true);
+  }, [progress]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

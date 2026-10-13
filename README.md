@@ -10,7 +10,8 @@
   </p>
 
   <p align="center">
-    <a href="#-vistas-del-simulador"><img src="https://img.shields.io/badge/Demo-Vistas%20Ilustradas-38bdf8?style=for-the-badge&logo=visualstudiocode" alt="Vistas" /></a>
+    <a href="https://unfantasmaenelsistema.github.io/OS-Intall-Lab/"><img src="https://img.shields.io/badge/Demo-En%20vivo-10b981?style=for-the-badge&logo=githubpages" alt="Demo en vivo" /></a>
+    <a href="#-vistas-del-simulador"><img src="https://img.shields.io/badge/Vistas-Ilustradas-38bdf8?style=for-the-badge&logo=visualstudiocode" alt="Vistas" /></a>
     <a href="#-características-principales"><img src="https://img.shields.io/badge/Tecnologías-React%2019%20%7C%20TS-61dafb?style=for-the-badge&logo=react" alt="React 19" /></a>
     <a href="#-instalación-y-despliegue-rápido"><img src="https://img.shields.io/badge/Build-Vite%208-bd34fe?style=for-the-badge&logo=vite" alt="Vite" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-10b981?style=for-the-badge" alt="Licencia MIT" /></a>
@@ -143,7 +144,8 @@ La interfaz cuenta con un selector de tema (Modo Claro / Modo Oscuro) persistido
 OS-Intall-Lab/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml               # Integración continua (Bun: typecheck, tests y build)
+│       ├── ci.yml               # Integración continua (Bun: typecheck, tests y build)
+│       └── deploy.yml           # Publicación en GitHub Pages en cada push a main
 ├── docs/
 │   └── screenshots/             # Capturas e ilustraciones vectoriales SVG
 │       ├── banner.svg
@@ -194,6 +196,8 @@ OS-Intall-Lab/
 ---
 
 ## 🚀 Instalación y Despliegue Rápido
+
+> **Demo en vivo:** https://unfantasmaenelsistema.github.io/OS-Intall-Lab/ — se publica automáticamente en GitHub Pages con cada push a `main` (workflow `deploy.yml`).
 
 ### Requisitos Previos
 - **Node.js**: v20.19 o superior (requisito de Vite 8)

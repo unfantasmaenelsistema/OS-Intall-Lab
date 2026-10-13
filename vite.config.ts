@@ -5,6 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Rutas relativas: funciona igual en local y en GitHub Pages (/OS-Intall-Lab/)
+    base: './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

@@ -19,7 +19,7 @@ export const GhostLogo: React.FC<GhostLogoProps> = ({
 
   const imageElement = (
     <img
-      src={imageError ? "/icono.svg" : "/icono.png"}
+      src={`${import.meta.env.BASE_URL}${imageError ? "icono.svg" : "icono.png"}`}
       alt="Logo Un Fantasma en el Sistema"
       className={`aspect-square object-contain shrink-0 select-none pointer-events-none inline-block ${className}`}
       style={style}

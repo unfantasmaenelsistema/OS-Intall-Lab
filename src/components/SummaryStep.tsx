@@ -13,6 +13,7 @@ import {
   Network
 } from 'lucide-react';
 import { InstallerState } from '../types/installer';
+import { generateInstallScript } from '../utils/installScript';
 
 interface SummaryStepProps {
   state: InstallerState;
@@ -28,110 +29,8 @@ export const SummaryStep: React.FC<SummaryStepProps> = ({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Generar los comandos reales que ejecutaría el instalador en Linux o Windows
-  const generateCommandScript = () => {
-    if (state.osType === 'linux') {
-      const cmds: string[] = [
-        '# --- 1. Inicialización de tabla de particiones ---',
-        `parted -s ${state.disk.devicePath} mklabel ${state.disk.tableType}`
-      ];
-
-      state.disk.partitions.forEach((p, idx) => {
-        cmds.push(`\n# Partición ${idx + 1}: ${p.mountPoint || 'Sin montaje'} (${p.sizeMB} MB)`);
-        cmds.push(`parted -s ${state.disk.devicePath} mkpart "${p.mountPoint || 'data'}" ${p.fsType === 'vfat' ? 'fat32' : 'ext4'} ${idx * 1024}MiB ${(idx + 1) * 1024}MiB`);
-        if (p.flags?.includes('esp')) {
-          cmds.push(`parted -s ${state.disk.devicePath} set ${idx + 1} esp on`);
-        }
-      });
-
-      if (state.useWholeDiskEncryption) {
-        cmds.push('\n# --- 2. Cifrado de disco con dm-crypt / LUKS2 ---');
-        cmds.push(`cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf argon2id ${state.disk.devicePath}p3`);
-        cmds.push(`cryptsetup open ${state.disk.devicePath}p3 cryptroot`);
-      }
-
-      if (state.useLvm) {
-        cmds.push('\n# --- 3. Configuración LVM (Logical Volume Management) ---');
-        const pvTarget = state.useWholeDiskEncryption ? '/dev/mapper/cryptroot' : `${state.disk.devicePath}p3`;
-        cmds.push(`pvcreate ${pvTarget}`);
-        cmds.push(`vgcreate ${state.lvmGroupName} ${pvTarget}`);
-        
-        state.disk.partitions.filter(p => p.isLvmLV).forEach(lv => {
-          cmds.push(`lvcreate -L ${lv.sizeMB}M -n ${lv.lvmLVName || 'lv_vol'} ${state.lvmGroupName}`);
-        });
-      }
-
-      cmds.push('\n# --- 4. Formateo de Sistemas de Archivos ---');
-      state.disk.partitions.forEach(p => {
-        const target = p.isLvmLV ? `/dev/mapper/${state.lvmGroupName}-${p.lvmLVName}` : p.name;
-        if (p.fsType === 'ext4') {
-          cmds.push(`mkfs.ext4 -F -L "${p.mountPoint === '/' ? 'root' : 'data'}" ${target}`);
-        } else if (p.fsType === 'xfs') {
-          cmds.push(`mkfs.xfs -f -L "${p.mountPoint === '/' ? 'root' : 'data'}" ${target}`);
-        } else if (p.fsType === 'btrfs') {
-          cmds.push(`mkfs.btrfs -f -L "system" ${target}`);
-        } else if (p.fsType === 'vfat') {
-          cmds.push(`mkfs.fat -F32 -n "EFI" ${target}`);
-        } else if (p.fsType === 'swap') {
-          cmds.push(`mkswap -L "swap" ${target}`);
-        }
-      });
-
-      cmds.push('\n# --- 5. Montaje de la jerarquía de directorios ---');
-      if (state.bootloader?.type === 'systemd_boot') {
-        cmds.push('\n# --- 6. Instalación de paquetes y cargador systemd-boot ---');
-        cmds.push('dnf --installroot=/mnt groupinstall -y "Minimal Install"');
-        cmds.push('bootctl install --path=/mnt/boot/efi');
-        cmds.push(`cat <<'EOF' > /mnt/boot/efi/loader/entries/enterprise.conf\ntitle   Enterprise Linux (6.6.14)\nlinux   /vmlinuz-6.6.14-enterprise\ninitrd  /initramfs-6.6.14.img\noptions root=/dev/mapper/vg_system-lv_root ro ${state.bootloader.quietSplash ? 'quiet splash' : ''} ${state.bootloader.noModeSet ? 'nomodeset' : ''} ${state.bootloader.customParameters || ''}\nEOF`);
-      } else {
-        cmds.push('\n# --- 6. Instalación de paquetes y cargador de arranque GRUB 2.06 ---');
-        cmds.push('dnf --installroot=/mnt groupinstall -y "Minimal Install"');
-        cmds.push('grub2-install --target=x86_64-efi --efi-directory=/mnt/boot/efi --bootloader-id=rocky');
-        cmds.push(`echo 'GRUB_CMDLINE_LINUX="resume=/dev/mapper/vg_system-lv_swap ${state.bootloader?.quietSplash ? 'quiet splash' : ''} ${state.bootloader?.noModeSet ? 'nomodeset' : ''} ${state.bootloader?.customParameters || ''}"' >> /mnt/etc/default/grub`);
-        cmds.push('grub2-mkconfig -o /mnt/boot/grub2/grub.cfg');
-      }
-      cmds.push('dracut --regenerate-all --force');
-
-      cmds.push('\n# --- 7. Configuración de Red (Netplan / systemd-networkd) ---');
-      if (state.network?.bridge.enabled) {
-        cmds.push(`cat <<'EOF' > /mnt/etc/netplan/01-netcfg.yaml\nnetwork:\n  version: 2\n  renderer: networkd\n  bridges:\n    ${state.network.bridge.name}:\n      interfaces: [${state.network.bridge.memberInterfaces.join(', ')}]\n      addresses: [${state.network.bridge.ipv4Address}/${state.network.bridge.prefixLength}]\n      routes: [{ to: default, via: ${state.network.bridge.gateway} }]\n      nameservers: { addresses: [${state.network.bridge.primaryDns}] }\nEOF`);
-      } else {
-        const iface = state.network?.interfaces[0];
-        if (iface?.ipMode === 'static') {
-          cmds.push(`cat <<'EOF' > /mnt/etc/netplan/01-netcfg.yaml\nnetwork:\n  version: 2\n  renderer: networkd\n  ethernets:\n    ${iface.name}:\n      addresses: [${iface.ipv4Address}/${iface.prefixLength}]\n      routes: [{ to: default, via: ${iface.gateway} }]\n      nameservers: { addresses: [${iface.primaryDns}] }\nEOF`);
-        } else {
-          cmds.push(`cat <<'EOF' > /mnt/etc/netplan/01-netcfg.yaml\nnetwork:\n  version: 2\n  renderer: networkd\n  ethernets:\n    ${iface?.name || 'enp1s0'}:\n      dhcp4: true\nEOF`);
-        }
-      }
-      cmds.push('chmod 600 /mnt/etc/netplan/01-netcfg.yaml');
-
-      return cmds.join('\n');
-    } else {
-      // Windows Server Diskpart script
-      return `# Script de configuración de disco Windows (Diskpart / PowerShell)
-select disk 0
-clean
-convert gpt
-create partition efi size=512
-format quick fs=fat32 label="System"
-create partition msr size=16
-create partition primary size=120000
-format quick fs=ntfs label="Windows"
-assign letter=C
-create partition primary
-format quick fs=refs label="Storage_ReFS"
-assign letter=D
-dism /Apply-Image /ImageFile:D:\\sources\\install.wim /Index:2 /ApplyDir:C:\\
-bcdboot C:\\Windows /s S: /f UEFI
-
-# Configuración de Red PowerShell & WinRM Remoting
-New-NetIPAddress -InterfaceAlias "Ethernet0" -IPAddress "192.168.1.200" -PrefixLength 24 -DefaultGateway "192.168.1.1"
-Set-DnsClientServerAddress -InterfaceAlias "Ethernet0" -ServerAddresses ("1.1.1.1", "8.8.8.8")
-Enable-PSRemoting -Force`;
-    }
-  };
-
-  const commandScript = generateCommandScript();
+  // Comandos equivalentes a los que ejecutaría el instalador en Linux o Windows
+  const commandScript = generateInstallScript(state);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(commandScript);

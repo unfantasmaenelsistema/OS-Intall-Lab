@@ -7,12 +7,16 @@ import {
   ShieldCheck, 
   ArrowRight, 
   ArrowLeft,
-  Check
+  Check,
+  Package
 } from 'lucide-react';
-import { OSType, SoftwareProfile } from '../types/installer';
+import { LinuxDistroId, OSType, SoftwareProfile } from '../types/installer';
+import { DISTROS, DISTRO_ORDER, PackageFamily, distroLabel, networkStackLabel } from '../data/distros';
 
 interface SoftwareStepProps {
   osType: OSType;
+  distroId: LinuxDistroId;
+  onSelectDistro: (id: LinuxDistroId) => void;
   selectedProfileId: string;
   onSelectProfile: (id: string) => void;
   onNext: () => void;
@@ -97,8 +101,17 @@ const WINDOWS_PROFILES: SoftwareProfile[] = [
   }
 ];
 
+const FAMILY_LABEL: Record<PackageFamily, string> = {
+  deb: '.deb · apt',
+  rpm: '.rpm · dnf',
+  pacman: 'pacman',
+  apk: 'apk'
+};
+
 export const SoftwareStep: React.FC<SoftwareStepProps> = ({
   osType,
+  distroId,
+  onSelectDistro,
   selectedProfileId,
   onSelectProfile,
   onNext,
@@ -106,18 +119,92 @@ export const SoftwareStep: React.FC<SoftwareStepProps> = ({
 }) => {
   const profiles = osType === 'linux' ? LINUX_PROFILES : WINDOWS_PROFILES;
   const activeProfile = profiles.find(p => p.id === selectedProfileId) || profiles[0];
+  const distro = DISTROS[distroId];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Encabezado */}
       <div className="border-b border-slate-800 pb-4">
         <h2 className="text-xl font-bold text-white tracking-tight">
-          Paso 3: Selección de Software y Perfil de Instalación
+          Paso 3: {osType === 'linux' ? 'Distribución, ' : ''}Software y Perfil de Instalación
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Elige los paquetes base que se desplegarán en el disco. Esto determina el espacio mínimo necesario en la partición raíz.
+          {osType === 'linux'
+            ? 'Elige la distribución y los paquetes base. La distribución decide las herramientas que usará el instalador (gestor de paquetes, initramfs, cargador y red); el perfil, el espacio mínimo de la raíz.'
+            : 'Elige los paquetes base que se desplegarán en el disco. Esto determina el espacio mínimo necesario en la partición raíz.'}
         </p>
       </div>
+
+      {osType === 'linux' && (
+        <section className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+            <Package className="w-4 h-4 text-sky-400" />
+            <span>Distribución</span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {DISTRO_ORDER.map(id => {
+              const d = DISTROS[id];
+              const isSelected = id === distroId;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onSelectDistro(id)}
+                  aria-pressed={isSelected}
+                  className={`text-left p-3 rounded-xl border transition-all ${
+                    isSelected
+                      ? 'bg-slate-900 border-sky-500 shadow-md ring-1 ring-sky-500/30'
+                      : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-sm text-white block">{d.name}</span>
+                      <span className="text-[11px] font-mono text-sky-300">{d.version}</span>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap">
+                      {FAMILY_LABEL[d.family]}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2 leading-snug">{d.description}</p>
+                  <div className="flex flex-wrap gap-1 mt-2 text-[10px] font-mono">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">{d.init}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">{d.libc}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">{d.defaultRootFs}</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">{d.releaseModel}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
+            <h4 className="text-xs font-bold text-sky-300 mb-2">
+              Cómo instala {distroLabel(distro)} (lo verás en el script, la terminal y el primer arranque):
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+              <ul className="space-y-1">
+                {distro.highlights.map((h, i) => (
+                  <li key={i} className="text-[11px] text-slate-300 flex items-start gap-1.5">
+                    <span className="text-sky-400 text-xs">›</span>
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px] font-mono">
+                <dt className="text-slate-500">Paquetes</dt><dd className="text-slate-200">{distro.packageManager}</dd>
+                <dt className="text-slate-500">Initramfs</dt><dd className="text-slate-200">{distro.initramfs}</dd>
+                <dt className="text-slate-500">GRUB</dt><dd className="text-slate-200">{distro.grub.install} · {distro.grub.mkconfig.split(' ')[0]}</dd>
+                <dt className="text-slate-500">Red</dt><dd className="text-slate-200">{networkStackLabel(distro)}</dd>
+                <dt className="text-slate-500">Seguridad</dt><dd className="text-slate-200">{distro.lsm ? distro.lsm.name : 'sin LSM por defecto'}</dd>
+                <dt className="text-slate-500">Kernel</dt><dd className="text-slate-200">{distro.kernel.release}</dd>
+              </dl>
+            </div>
+          </div>
+
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">Perfil de instalación</h3>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {profiles.map(profile => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Network, 
   Globe, 
@@ -29,11 +29,23 @@ import {
   NetworkInterfaceConfig, 
   BridgeInterfaceConfig, 
   NetworkIPMode, 
-  OSType 
+  OSType,
+  LinuxDistroId
 } from '../types/installer';
+import { NetworkStack, getDistro, distroLabel } from '../data/distros';
+
+type ConfigFileTab = 'netplan' | 'networkd' | 'nm' | 'ifupdown' | 'powershell';
+
+const STACK_TAB: Record<NetworkStack, ConfigFileTab> = {
+  netplan: 'netplan',
+  'systemd-networkd': 'networkd',
+  networkmanager: 'nm',
+  ifupdown: 'ifupdown'
+};
 
 interface NetworkStepProps {
   osType: OSType;
+  distroId: LinuxDistroId;
   config: NetworkConfig;
   onChange: (updated: Partial<NetworkConfig>) => void;
   onNext: () => void;
@@ -42,6 +54,7 @@ interface NetworkStepProps {
 
 export const NetworkStep: React.FC<NetworkStepProps> = ({
   osType,
+  distroId,
   config,
   onChange,
   onNext,
@@ -50,15 +63,22 @@ export const NetworkStep: React.FC<NetworkStepProps> = ({
   const [activeTab, setActiveTab] = useState<'interfaces' | 'bridge' | 'remote' | 'configfiles'>('interfaces');
   const [selectedInterfaceId, setSelectedInterfaceId] = useState<string>(config.primaryInterfaceId || config.interfaces[0]?.id || 'iface-1');
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
-  const [activeConfigFileTab, setActiveConfigFileTab] = useState<'netplan' | 'networkd' | 'nm' | 'powershell'>(
-    osType === 'linux' ? 'netplan' : 'powershell'
-  );
+  const distro = getDistro(distroId);
+  // Pestaña del fichero que realmente escribe el instalador de la distribución elegida
+  const recommendedConfigTab: ConfigFileTab = osType === 'linux' ? STACK_TAB[distro.network] : 'powershell';
+  const [activeConfigFileTab, setActiveConfigFileTab] = useState<ConfigFileTab>(recommendedConfigTab);
 
   // Estado para la prueba interactiva de conectividad y ruta
   const [isTestingLink, setIsTestingLink] = useState(false);
   const [testLog, setTestLog] = useState<string[]>([]);
   const [testCompleted, setTestCompleted] = useState(false);
   const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
+  const testIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Detiene la prueba en curso si el componente se desmonta (p. ej. al cambiar de paso)
+  useEffect(() => () => {
+    if (testIntervalRef.current) clearInterval(testIntervalRef.current);
+  }, []);
 
   const currentIface = config.interfaces.find(i => i.id === selectedInterfaceId) || config.interfaces[0];
 
@@ -241,6 +261,7 @@ export const NetworkStep: React.FC<NetworkStepProps> = ({
 
   // Ejecución interactiva del simulador de conectividad de red
   const runNetworkDiagnosticTest = () => {
+    if (testIntervalRef.current) clearInterval(testIntervalRef.current);
     setIsTestingLink(true);
     setTestCompleted(false);
     setTestLog([]);
@@ -270,23 +291,26 @@ export const NetworkStep: React.FC<NetworkStepProps> = ({
     let currentStep = 0;
     const interval = setInterval(() => {
       if (currentStep < steps.length) {
-        setTestLog(prev => [...prev, steps[currentStep]]);
+        const line = steps[currentStep];
+        setTestLog(prev => [...prev, line]);
         currentStep++;
       } else {
         clearInterval(interval);
+        testIntervalRef.current = null;
         setIsTestingLink(false);
         setTestCompleted(true);
         const ok = activeEffectiveConfig.hasIp && activeEffectiveConfig.hasGateway && activeEffectiveConfig.hasDns;
         setTestSuccess(ok);
       }
     }, 400);
+    testIntervalRef.current = interval;
   };
 
   // Generador de Ficheros de Configuración
   const configFiles = useMemo(() => {
     const pri = config.interfaces.find(i => i.id === config.primaryInterfaceId) || config.interfaces[0];
     
-    // Netplan (Ubuntu / Debian moderno)
+    // Netplan (Ubuntu)
     let netplanYaml = `# /etc/netplan/01-netcfg.yaml
 # Generado por el Instalador del Sistema Operativo
 network:
@@ -355,7 +379,30 @@ ${config.bridge.enabled ? `Bridge=${config.bridge.name}` : ''}
 MTUBytes=${pri.mtu}
 `;
 
-    // NetworkManager Keyfile (RHEL / Rocky / Fedora)
+    // ifupdown / ifupdown-ng (Debian / Alpine)
+    const ifupAddr = (mode: NetworkIPMode, address: string, prefix: number, gateway: string) =>
+      mode === 'static' ? ` static
+    address ${address}/${prefix}
+    gateway ${gateway}` : mode === 'dhcp' ? ' dhcp' : ' manual';
+    const ifupdownFile = `# /etc/network/interfaces
+auto lo
+iface lo inet loopback
+${config.bridge.enabled
+  ? `
+auto ${config.bridge.name}
+iface ${config.bridge.name} inet${ifupAddr(config.bridge.ipMode, config.bridge.ipv4Address, config.bridge.prefixLength, config.bridge.gateway)}
+    bridge-ports ${config.bridge.memberInterfaces.join(' ')}
+    bridge-stp ${config.bridge.stp ? 'on' : 'off'}`
+  : `
+auto ${pri.name}
+iface ${pri.name} inet${ifupAddr(pri.ipMode, pri.ipv4Address, pri.prefixLength, pri.gateway)}${pri.mtu !== 1500 ? `
+    mtu ${pri.mtu}` : ''}`}
+
+# /etc/resolv.conf
+${[config.bridge.enabled ? config.bridge.primaryDns : pri.primaryDns, config.bridge.enabled ? config.bridge.secondaryDns : pri.secondaryDns].filter(Boolean).map(d => `nameserver ${d}`).join('\n')}
+`;
+
+    // NetworkManager Keyfile (Fedora / RHEL / Rocky)
     const nmKeyfile = `# /etc/NetworkManager/system-connections/${pri.name}.nmconnection
 [connection]
 id=${pri.name}
@@ -395,6 +442,7 @@ Enable-PSRemoting -Force -SkipNetworkProfileCheck
       netplan: netplanYaml,
       networkd: systemdNetwork,
       nm: nmKeyfile,
+      ifupdown: ifupdownFile,
       powershell: powershellScript
     };
   }, [config]);
@@ -515,7 +563,7 @@ Enable-PSRemoting -Force -SkipNetworkProfileCheck
           }`}
         >
           <Terminal className="w-4 h-4 text-sky-400" />
-          <span>Ficheros del Sistema (Netplan / NM / PS)</span>
+          <span>Ficheros del Sistema (Netplan / ifupdown / NM / networkd / PS)</span>
         </button>
       </div>
 
@@ -1303,55 +1351,36 @@ Enable-PSRemoting -Force -SkipNetworkProfileCheck
                 <span>Generador de Ficheros de Red del Instalador</span>
               </h3>
               <p className="text-xs text-slate-400">
-                Ficheros exactos que el instalador escribirá en el sistema de destino tras completar la fase de particionado.
+                {osType === 'linux'
+                  ? `${distroLabel(distro)} usa el formato marcado como "en uso"; el resto se muestra para comparar cómo se expresa la misma configuración en otras distribuciones.`
+                  : 'Ficheros exactos que el instalador escribirá en el sistema de destino tras completar la fase de particionado.'}
               </p>
             </div>
 
-            <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs">
-              <button
-                type="button"
-                onClick={() => setActiveConfigFileTab('netplan')}
-                className={`px-2.5 py-1 rounded font-medium transition-all ${
-                  activeConfigFileTab === 'netplan'
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Netplan (Ubuntu/Debian)
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveConfigFileTab('nm')}
-                className={`px-2.5 py-1 rounded font-medium transition-all ${
-                  activeConfigFileTab === 'nm'
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                NetworkManager (RHEL/Rocky)
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveConfigFileTab('networkd')}
-                className={`px-2.5 py-1 rounded font-medium transition-all ${
-                  activeConfigFileTab === 'networkd'
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                systemd-networkd
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveConfigFileTab('powershell')}
-                className={`px-2.5 py-1 rounded font-medium transition-all ${
-                  activeConfigFileTab === 'powershell'
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Windows PowerShell
-              </button>
+            <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-lg text-xs">
+              {([
+                ['netplan', 'Netplan (Ubuntu)'],
+                ['ifupdown', 'ifupdown (Debian/Alpine)'],
+                ['nm', 'NetworkManager (Fedora/RHEL)'],
+                ['networkd', 'systemd-networkd (Arch)'],
+                ['powershell', 'Windows PowerShell']
+              ] as [ConfigFileTab, string][]).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveConfigFileTab(tab)}
+                  className={`px-2.5 py-1 rounded font-medium transition-all flex items-center gap-1 ${
+                    activeConfigFileTab === tab
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>{label}</span>
+                  {tab === recommendedConfigTab && (
+                    <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">en uso</span>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
 

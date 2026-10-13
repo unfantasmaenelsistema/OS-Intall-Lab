@@ -16,6 +16,9 @@ import {
   Tv
 } from 'lucide-react';
 import { InstallerState } from '../types/installer';
+import { computeDiskLayout, lvSizeSpec, partedEnd } from '../utils/diskLayout';
+import { keyInstallCommands } from '../utils/installScript';
+import { getDistro } from '../data/distros';
 
 export type TerminalTheme = 'dark_modern' | 'classic_crt' | 'matrix_green';
 
@@ -153,6 +156,12 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     const list: ShellCommandEntry[] = [];
     const t = (sec: number) => `00:00:${sec < 10 ? '0' + sec : sec}`;
     let sec = 1;
+    const layout = computeDiskLayout(state.disk, state.useLvm, state.useWholeDiskEncryption, state.lvmGroupName);
+    const devFor = (p: { id: string; name: string }) => layout.deviceFor[p.id] || p.name;
+    const luksDev = layout.luksBacking?.device ?? state.disk.devicePath;
+    const rootItem = state.disk.partitions.find(p => p.mountPoint === '/');
+    const distro = getDistro(state.distroId);
+    const keyCmds = keyInstallCommands(state);
 
     // 1. Particionamiento
     list.push({
@@ -168,16 +177,15 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       exitCode: 0
     });
 
-    state.disk.partitions.forEach((p, idx) => {
-      const partNum = idx + 1;
-      const partFs = p.fsType === 'vfat' ? 'fat32' : p.fsType === 'swap' ? 'linux-swap' : 'ext4';
-      const startMB = idx * 1024;
-      const endMB = startMB + p.sizeMB;
+    layout.physical.forEach(pp => {
+      const partNum = pp.number;
+      const startMB = pp.startMiB;
+      const endMB = pp.endMiB;
 
       list.push({
         id: `cmd-parted-${partNum}`,
         timestamp: t(sec++),
-        command: `parted -s -a optimal ${state.disk.devicePath} mkpart "${p.mountPoint || 'data'}" ${partFs} ${startMB}MiB ${endMB}MiB`,
+        command: `parted -s -a optimal ${state.disk.devicePath} mkpart ${state.disk.tableType === 'gpt' ? `"${pp.label}"` : 'primary'}${pp.partedFs ? ` ${pp.partedFs}` : ''} ${startMB}MiB ${partedEnd(pp)}`,
         output: [
           `Aligned partition ${partNum} on 4096-byte hardware sector boundaries (LBA ${startMB * 2048} - ${endMB * 2048}).`
         ],
@@ -186,7 +194,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
         exitCode: 0
       });
 
-      if (p.flags?.includes('esp') || p.mountPoint === '/boot/efi') {
+      if (pp.source?.flags?.includes('esp') || pp.source?.mountPoint === '/boot/efi') {
         list.push({
           id: `cmd-flag-esp-${partNum}`,
           timestamp: t(sec++),
@@ -202,26 +210,27 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     });
 
     // 2. Cifrado LUKS2 si aplica
-    if (state.useWholeDiskEncryption) {
+    if (state.useWholeDiskEncryption && layout.luksBacking) {
+      const hasSeparateBoot = state.disk.partitions.some(p => p.mountPoint === '/boot');
       list.push({
         id: 'cmd-cryptsetup-format',
         timestamp: t(sec++),
-        command: `cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf argon2id ${state.disk.devicePath}p3`,
+        command: `cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf ${hasSeparateBoot ? 'argon2id' : 'pbkdf2'} ${luksDev}`,
         output: [
-          `WARNING: This will overwrite data on ${state.disk.devicePath}p3 irrevocably.`,
+          `WARNING: This will overwrite data on ${luksDev} irrevocably.`,
           `Generating LUKS2 metadata header...`,
-          `Benchmarking memory parameters for Argon2id (iterations: 4, memory: 1048576 KiB)...`,
+          hasSeparateBoot ? `Benchmarking memory parameters for Argon2id (iterations: 4, memory: 1048576 KiB)...` : `Benchmarking PBKDF2-sha512 (GRUB cryptodisk compatible)...`,
           `Key slot 0 created with 512-bit master volume key. Header size: 16 MiB.`
         ],
         category: 'crypto',
-        educationalNote: `Cifra la partición física con el estándar LUKS2 usando cifrado simétrico AES en modo XTS con clave de 512 bits. La función de derivación de claves Argon2id requiere 1 GB de RAM en el cálculo para neutralizar ataques de fuerza bruta mediante GPUs y ASICs dedicados.`,
+        educationalNote: `Cifra la partición física con el estándar LUKS2 usando cifrado simétrico AES en modo XTS con clave de 512 bits. ${hasSeparateBoot ? "La función de derivación Argon2id requiere 1 GB de RAM en el cálculo para neutralizar ataques de fuerza bruta mediante GPUs y ASICs dedicados." : "Se usa PBKDF2 porque /boot queda dentro del volumen cifrado y GRUB no sabe derivar claves Argon2id: con Argon2id el sistema no arrancaría."}`,
         exitCode: 0
       });
 
       list.push({
         id: 'cmd-cryptsetup-open',
         timestamp: t(sec++),
-        command: `cryptsetup open --type luks2 ${state.disk.devicePath}p3 cryptroot`,
+        command: `cryptsetup open --type luks2 ${luksDev} cryptroot`,
         output: [
           `Key slot 0 unlocked.`,
           `Created device-mapper virtual block device: /dev/mapper/cryptroot [MAJOR=253, MINOR=0].`
@@ -234,7 +243,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
 
     // 3. LVM si aplica
     if (state.useLvm && state.osType === 'linux') {
-      const pvDev = state.useWholeDiskEncryption ? '/dev/mapper/cryptroot' : `${state.disk.devicePath}p3`;
+      const pvDev = layout.pvDevice ?? `${luksDev}`;
 
       list.push({
         id: 'cmd-pvcreate',
@@ -266,10 +275,10 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
         list.push({
           id: `cmd-lvcreate-${lvName}`,
           timestamp: t(sec++),
-          command: `lvcreate -L ${lv.sizeMB}M -n ${lvName} ${state.lvmGroupName}`,
+          command: `lvcreate -y ${lvSizeSpec(layout, lv)} -n ${lvName} ${state.lvmGroupName}`,
           output: [
             `Logical volume "${lvName}" created [Size: ${(lv.sizeMB / 1024).toFixed(1)} GiB, Extents: ${Math.ceil(lv.sizeMB / 4)}].`,
-            `Mapped device node: /dev/mapper/${state.lvmGroupName}-${lvName}`
+            `Mapped device node: ${layout.deviceFor[lv.id]}`
           ],
           category: 'lvm',
           educationalNote: `Crea el Logical Volume '${lvName}'. A diferencia de una partición fija, este volumen se puede extender en caliente con el comando 'lvextend' mientras el sistema está encendido si el disco se llena.`,
@@ -280,7 +289,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
 
     // 4. Formateo de sistemas de archivos
     state.disk.partitions.forEach(p => {
-      const dev = p.isLvmLV ? `/dev/mapper/${state.lvmGroupName}-${p.lvmLVName}` : p.name;
+      const dev = devFor(p);
 
       if (p.fsType === 'ext4') {
         list.push({
@@ -366,7 +375,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     list.push({
       id: 'cmd-mount-root',
       timestamp: t(sec++),
-      command: `mount -o defaults,noatime ${state.useLvm ? `/dev/mapper/${state.lvmGroupName}-lv_root` : `${state.disk.devicePath}p2`} /mnt`,
+      command: `mount -o defaults,noatime ${rootItem ? devFor(rootItem) : state.disk.devicePath} /mnt`,
       output: [
         `Mounted target root filesystem to /mnt directory.`
       ],
@@ -375,51 +384,76 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       exitCode: 0
     });
 
-    // 6. Initramfs y Bootloader
+    // 6. Sistema base, initramfs y cargador (según la distribución)
     list.push({
-      id: 'cmd-dracut',
+      id: 'cmd-base-install',
       timestamp: t(sec++),
-      command: `dracut --regenerate-all --force --add "crypt lvm xfs" /mnt/boot/initramfs-linux.img`,
+      command: keyCmds.baseInstall,
       output: [
-        `dracut: Executing: /usr/bin/dracut --regenerate-all --force`,
-        `dracut: *** Including module: bash ***`,
-        `dracut: *** Including module: crypt (dm-crypt & cryptsetup) ***`,
-        `dracut: *** Including module: lvm (device-mapper LVM2) ***`,
-        `dracut: *** Including module: xfs ***`,
-        `dracut: *** Store current command line parameters into /etc/crypttab ***`,
-        `dracut: *** Creating image file '/mnt/boot/initramfs-linux.img' ***`,
-        `dracut: *** Image size: 34.2 MiB (uncompressed: 86.1 MiB) ***`
+        `${distro.packageManager}: resolving dependencies from ${distro.mirrorUrl}`,
+        `${distro.packageManager}: installing base system into /mnt (${distro.libc}, ${distro.init}, kernel ${distro.kernel.release})`,
+        `${distro.packageManager}: base system installed successfully.`
       ],
-      category: 'bootloader',
-      educationalNote: `Genera la imagen del disco RAM inicial (initramfs). Es un mini-sistema operativo que el procesador carga en la memoria RAM para pedir la clave LUKS y activar los volúmenes LVM antes de que exista el sistema real.`,
+      category: 'system',
+      educationalNote: {
+        deb: 'debootstrap descarga los paquetes "essential" de Debian/Ubuntu y crea un sistema mínimo en /mnt; el kernel y el resto se instalan después con apt dentro del chroot.',
+        rpm: 'dnf --installroot instala los paquetes RPM directamente en /mnt usando los repositorios del sistema live; @core es el grupo mínimo de la familia Red Hat.',
+        pacman: 'pacstrap (arch-install-scripts) instala el grupo base, el kernel y el firmware en /mnt; -K inicializa un anillo de claves pacman propio en el destino.',
+        apk: 'apk --root --initdb crea una base de datos de paquetes vacía en /mnt e instala alpine-base (BusyBox, musl y OpenRC); es lo que hace setup-disk por debajo.'
+      }[distro.family],
       exitCode: 0
     });
 
     list.push({
-      id: 'cmd-grub-install',
+      id: 'cmd-initramfs',
       timestamp: t(sec++),
-      command: `grub2-install --target=x86_64-efi --efi-directory=/mnt/boot/efi --bootloader-id=rocky --recheck`,
+      command: keyCmds.initramfs,
       output: [
-        `Installing for x86_64-efi platform.`,
-        `Created EFI boot entry: /boot/efi/EFI/rocky/grubx64.efi`,
-        `Registering entry in NVRAM with efibootmgr: 'Boot0001* Rocky Linux'`,
-        `Installation finished. No error reported.`
+        `${distro.initramfs}: building image for kernel ${distro.kernel.release}`,
+        ...(state.useWholeDiskEncryption ? [`${distro.initramfs}: including dm-crypt / cryptsetup support`] : []),
+        ...(state.useLvm ? [`${distro.initramfs}: including LVM2 (device-mapper) support`] : []),
+        `${distro.initramfs}: created /boot/${distro.kernel.initrd}`
       ],
       category: 'bootloader',
-      educationalNote: `Copia el cargador GRUB en la partición ESP y registra la entrada en la memoria NVRAM de la placa base UEFI para que la máquina sepa arrancar este sistema por defecto.`,
+      educationalNote: {
+        'initramfs-tools': 'update-initramfs regenera el initrd de Debian/Ubuntu. Los hooks de cryptsetup-initramfs y lvm2 leen /etc/crypttab para saber qué volumen desbloquear.',
+        dracut: 'dracut construye el initramfs de la familia Red Hat por módulos (crypt, lvm…). El volumen se localiza con los parámetros rd.luks.uuid y rd.lvm.lv.',
+        mkinitcpio: 'mkinitcpio -P regenera los initramfs de todos los kernels de Arch. Solo incluye lo que indiquen los HOOKS de /etc/mkinitcpio.conf: sin encrypt o lvm2 la raíz no se encuentra.',
+        mkinitfs: 'mkinitfs genera el initramfs de Alpine a partir de las "features" de /etc/mkinitfs/mkinitfs.conf (cryptsetup, lvm…); el volumen se indica con cryptroot= en la línea del kernel.'
+      }[distro.initramfs],
+      exitCode: 0
+    });
+
+    list.push({
+      id: 'cmd-bootloader',
+      timestamp: t(sec++),
+      command: keyCmds.bootloader,
+      output: state.bootloader?.type === 'systemd_boot'
+        ? ['Copied "/usr/lib/systemd/boot/efi/systemd-bootx64.efi" to "/boot/efi/EFI/systemd/systemd-bootx64.efi".', 'Created EFI boot entry "Linux Boot Manager".']
+        : state.hardware.firmware === 'uefi'
+          ? [`Boot entry added: Boot0001* ${distro.grub.menuName}`, `Loader: \EFI\${distro.grub.efiId}\${distro.family === 'rpm' ? 'shimx64.efi' : 'grubx64.efi'}`]
+          : ['Installing for i386-pc platform.', 'Installation finished. No error reported.'],
+      category: 'bootloader',
+      educationalNote: distro.family === 'rpm' && state.hardware.firmware === 'uefi'
+        ? `En ${distro.name} los binarios firmados (shim → GRUB) ya los instala el paquete; basta con registrar shimx64.efi en la NVRAM con efibootmgr para conservar Secure Boot.`
+        : 'Copia el cargador a la ESP (o al sector de arranque en BIOS) y registra la entrada en la NVRAM de la placa base para que la máquina arranque este sistema por defecto.',
       exitCode: 0
     });
 
     list.push({
       id: 'cmd-useradd',
       timestamp: t(sec++),
-      command: `chroot /mnt useradd -m -s /bin/bash -G wheel "${state.userConfig.adminUsername}"`,
+      command: distro.family === 'apk'
+        ? `chroot /mnt adduser -D -s ${distro.defaultShell} "${state.userConfig.adminUsername}" && chroot /mnt addgroup "${state.userConfig.adminUsername}" ${distro.adminGroup}`
+        : `${distro.family === 'pacman' ? 'arch-chroot' : 'chroot'} /mnt useradd -m -s ${distro.defaultShell} -G ${distro.adminGroup} "${state.userConfig.adminUsername}"`,
       output: [
         `User '${state.userConfig.adminUsername}' created with home directory /home/${state.userConfig.adminUsername}.`,
-        `Added user to supplementary administrative group: wheel.`
+        `Added user to supplementary administrative group: ${distro.adminGroup}.`
       ],
       category: 'system',
-      educationalNote: `Añade el usuario al grupo 'wheel' dentro del entorno chroot. Esto le concede derechos de elevación mediante sudo según la política de seguridad /etc/sudoers.`,
+      educationalNote: distro.adminGroup === 'sudo'
+        ? `En ${distro.name} el grupo administrativo es 'sudo' (no 'wheel'): /etc/sudoers ya concede privilegios a %sudo.`
+        : `Añade el usuario al grupo 'wheel'. ${distro.family === 'apk' ? 'En Alpine hay que instalar sudo o doas y permitir al grupo wheel en su configuración.' : 'La política de /etc/sudoers concede privilegios a %wheel.'}`,
       exitCode: 0
     });
 
@@ -428,9 +462,9 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       list.push({
         id: 'cmd-fail-bad-sectors',
         timestamp: t(sec++),
-        command: `dd if=/dev/zero of=${state.disk.devicePath}p2 bs=4k count=100 conv=fdatasync`,
+        command: `dd if=/dev/zero of=${rootItem ? devFor(rootItem) : state.disk.devicePath} bs=4k count=100 conv=fdatasync`,
         output: [
-          `dd: error writing '${state.disk.devicePath}p2': Input/output error`,
+          `dd: error writing '${rootItem ? devFor(rootItem) : state.disk.devicePath}': Input/output error`,
           `[kernel] blk_update_request: I/O error, dev nvme0n1, sector 4145674 op 0x1:(WRITE) flags 0x800`,
           `Command failed with exit code 5 (EIO: Input/Output Error)`
         ],
@@ -444,10 +478,10 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       list.push({
         id: 'cmd-fail-net-disconnect',
         timestamp: t(sec++),
-        command: `curl -sSf https://repo.rockylinux.org/pub/rocky/9/BaseOS/x86_64/os/repodata/repomd.xml -o /tmp/repomd.xml`,
+        command: `curl -sSfI ${distro.mirrorUrl}/`,
         output: [
           `curl: (7) Couldn't connect to server: Network is unreachable (enp1s0 carrier down)`,
-          `dnf: [Errno 14] curl#7 - "Couldn't connect to server: Network is unreachable"`
+          `${distro.packageManager}: failed to fetch package index from ${distro.mirrorUrl}`
         ],
         category: 'system',
         educationalNote: 'El kernel detecta interfaz enp1s0 sin portadora física (Link is DOWN). El instalador suspende la descarga remota.',
@@ -462,7 +496,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
         command: `dmesg | grep -i "hardware error"`,
         output: [
           `[  3.890120] [Hardware Error]: CPU 0: Machine Check Exception (MCE): Bank 5: Memory Controller uncorrected ECC error`,
-          `[  3.890130] kernel: Tainted: G        W   M    6.6.14 #1`
+          `[  3.890130] kernel: Tainted: G        W   M    ${distro.kernel.release} #1`
         ],
         category: 'system',
         educationalNote: 'Excepción MCE de memoria detectada. Se aconseja detener la instalación para evitar corrupción de datos en el sistema de archivos.',

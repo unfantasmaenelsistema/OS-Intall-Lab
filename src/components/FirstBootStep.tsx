@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { GhostLogo } from './GhostLogo';
 import { InstallerState } from '../types/installer';
+import { getDistro } from '../data/distros';
+import { computeDiskLayout } from '../utils/diskLayout';
+import { procCmdline, SAMPLE_LUKS_UUID } from '../utils/kernelCmdline';
 
 interface FirstBootStepProps {
   state: InstallerState;
@@ -41,28 +44,27 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
   state,
   onRestartSimulation
 }) => {
-  const [phase, setPhase] = useState<BootPhase>(
-    state.useWholeDiskEncryption ? 'luks_prompt' : 'bootloader_menu'
-  );
+  const distro = getDistro(state.distroId);
+  const isLinux = state.osType === 'linux';
+  const layout = computeDiskLayout(state.disk, state.useLvm, state.useWholeDiskEncryption, state.lvmGroupName);
+  const luksDevice = layout.luksBacking?.device ?? state.disk.devicePath;
+  const hasSeparateBoot = state.disk.partitions.some(p => p.mountPoint === '/boot');
+  // Con /boot dentro de LUKS es GRUB (cryptodisk) quien pide la clave, antes del menú;
+  // con /boot separado aparece primero el menú y la pide el initramfs al arrancar el kernel.
+  const grubUnlocksDisk = state.useWholeDiskEncryption && !hasSeparateBoot && (state.bootloader?.type ?? 'grub2') === 'grub2';
+  const stripBootImage = (cmdline: string) => cmdline.replace(/^BOOT_IMAGE=\S+\s+/, '');
+  const grubEntryTitle = distro.family === 'rpm'
+    ? `${distro.grub.menuName} (${distro.kernel.release}) ${distro.version}`
+    : distro.grub.menuName;
+
+  const [phase, setPhase] = useState<BootPhase>(grubUnlocksDisk ? 'luks_prompt' : 'bootloader_menu');
   const [enteredPassphrase, setEnteredPassphrase] = useState('');
   const [luksError, setLuksError] = useState(false);
   const [isLuksUnlocked, setIsLuksUnlocked] = useState(!state.useWholeDiskEncryption);
 
   // Parámetros de kernel cmdline editables antes del boot (emulación de pulsar 'e' en GRUB/systemd-boot)
   const [showKernelEditor, setShowKernelEditor] = useState(false);
-  const [editedCmdline, setEditedCmdline] = useState<string>(() => {
-    const parts = [
-      'BOOT_IMAGE=/vmlinuz-6.6.14-enterprise',
-      'root=/dev/mapper/vg_system-lv_root',
-      'ro'
-    ];
-    if (state.bootloader?.quietSplash) parts.push('quiet splash');
-    if (state.bootloader?.noModeSet) parts.push('nomodeset');
-    if (state.bootloader?.selinuxEnforcing) parts.push('selinux=1 enforcing=1');
-    if (state.bootloader?.auditLogging) parts.push('audit=1');
-    if (state.bootloader?.customParameters?.trim()) parts.push(state.bootloader.customParameters.trim());
-    return parts.join(' ');
-  });
+  const [editedCmdline, setEditedCmdline] = useState<string>(() => procCmdline(state));
 
   // Login credentials
   const [loginUsername, setLoginUsername] = useState(state.userConfig.adminUsername || 'admin');
@@ -76,28 +78,15 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
   // Terminal interactiva en el sistema instalado
   const [terminalInput, setTerminalInput] = useState('');
   const [terminalOutput, setTerminalOutput] = useState<string[]>([
-    `Bienvenido a ${state.osType === 'linux' ? 'Enterprise Linux 9.4 (Green Obsidian)' : 'Windows Server 2025 Datacenter'}`,
-    `Kernel Linux 6.6.14-enterprise x86_64 (${state.userConfig.hostname})`,
-    `Cargador activo: ${state.bootloader?.type === 'systemd_boot' ? 'systemd-boot v255' : state.bootloader?.type === 'windows_bootmgr' ? 'Windows BOOTMGR' : 'GNU GRUB 2.06'}`,
+    `Bienvenido a ${isLinux ? distro.prettyName : 'Windows Server 2025 Datacenter'}`,
+    `Kernel Linux ${distro.kernel.release} x86_64 (${state.userConfig.hostname})`,
+    `Cargador activo: ${state.bootloader?.type === 'systemd_boot' ? `systemd-boot ${distro.systemdVersion ?? ''}`.trim() : state.bootloader?.type === 'windows_bootmgr' ? 'Windows BOOTMGR' : 'GNU GRUB 2'}`,
     `Escribe 'cat /proc/cmdline', 'bootctl', 'lsblk -f', 'df -hT', 'swapon' o 'help'.`,
     ''
   ]);
 
-  // Manejo de descifrado LUKS
-  const handleUnlockLuks = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (enteredPassphrase === state.diskEncryptionPassphrase || enteredPassphrase === 'test' || state.diskEncryptionPassphrase === '') {
-      setIsLuksUnlocked(true);
-      setLuksError(false);
-      setPhase('bootloader_menu');
-    } else {
-      setLuksError(true);
-    }
-  };
-
-  // Disparo del arranque desde el menú del bootloader
-  const handleStartBoot = () => {
-    // Si quiet splash NO está activo, mostrar arranque verboso dmesg
+  // Arranque del kernel: verboso (dmesg) o con splash según quiet splash
+  const startKernel = () => {
     if (!state.bootloader?.quietSplash) {
       setVerboseLogs([]);
       setBootProgressPct(0);
@@ -108,12 +97,65 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
     }
   };
 
+  // Manejo de descifrado LUKS
+  const handleUnlockLuks = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (enteredPassphrase === state.diskEncryptionPassphrase || enteredPassphrase === 'test' || state.diskEncryptionPassphrase === '') {
+      setIsLuksUnlocked(true);
+      setLuksError(false);
+      if (grubUnlocksDisk) setPhase('bootloader_menu');
+      else startKernel();
+    } else {
+      setLuksError(true);
+    }
+  };
+
+  // Disparo del arranque desde el menú del bootloader: si la raíz sigue cifrada, la pide el initramfs
+  const handleStartBoot = () => {
+    if (state.useWholeDiskEncryption && !isLuksUnlocked) {
+      setPhase('luks_prompt');
+      return;
+    }
+    startKernel();
+  };
+
+  // Texto del prompt de desbloqueo según quién lo muestra
+  const luksPartNumber = layout.luksBacking?.number ?? 1;
+  const luksPrompt = grubUnlocksDisk
+    ? {
+        title: 'GRUB cryptodisk: desbloqueo antes del menú',
+        text: `Enter passphrase for hd0,${state.disk.tableType === 'gpt' ? 'gpt' : 'msdos'}${luksPartNumber} (${SAMPLE_LUKS_UUID.replace(/-/g, '')}):`,
+        note: 'Como /boot está dentro del volumen cifrado, GRUB tiene que abrirlo para leer el kernel: por eso pide la clave antes del menú, y el keyslot debe usar PBKDF2 (GRUB no implementa Argon2id). Después el initramfs vuelve a necesitar la clave salvo que se use un keyfile.'
+      }
+    : {
+        'dracut': {
+          title: 'systemd-cryptsetup (dracut)',
+          text: `Please enter passphrase for disk ${luksDevice.replace('/dev/', '')} (luks-${SAMPLE_LUKS_UUID}):`,
+          note: 'dracut localiza el volumen gracias al parámetro rd.luks.uuid y delega el desbloqueo en systemd-cryptsetup, que deriva la clave maestra (Argon2id o PBKDF2, según el keyslot).'
+        },
+        'initramfs-tools': {
+          title: 'cryptsetup (initramfs-tools)',
+          text: 'Please unlock disk cryptroot:',
+          note: 'El script de cryptsetup-initramfs usa la copia de /etc/crypttab incluida en el initrd para saber qué volumen abrir y con qué nombre (cryptroot).'
+        },
+        'mkinitcpio': {
+          title: 'Hook encrypt (mkinitcpio)',
+          text: `A password is required to access the cryptroot volume:\nEnter passphrase for ${luksDevice}:`,
+          note: 'El hook encrypt de mkinitcpio lee el parámetro cryptdevice=UUID=...:cryptroot. Si falta el hook en HOOKS, este prompt nunca aparece y el arranque se detiene sin encontrar la raíz.'
+        },
+        'mkinitfs': {
+          title: 'nlplug-findfs (mkinitfs)',
+          text: `Enter passphrase for ${luksDevice}:`,
+          note: 'El initramfs de Alpine abre el volumen indicado por cryptroot= y lo publica como /dev/mapper/cryptroot (cryptdm=) antes de buscar la raíz.'
+        }
+      }[distro.initramfs];
+
   // Simulación del arranque verboso con dmesg y systemd
   useEffect(() => {
     if (phase !== 'kernel_verbose_boot') return;
 
     const kernelBootMessages = [
-      '[    0.000000] Linux version 6.6.14-enterprise (gcc version 13.2.0) #1 SMP PREEMPT_DYNAMIC',
+      `[    0.000000] Linux version ${distro.kernel.release} #1 SMP PREEMPT_DYNAMIC`,
       `[    0.000000] Command line: ${editedCmdline}`,
       '[    0.012450] BIOS-e820: [mem 0x0000000000000000-0x000000000009fbff] usable',
       `[    0.089120] smpboot: CPU0: ${state.hardware.cpuCores} vCPUs enumerated (HyperThreading active)`,
@@ -121,54 +163,78 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
         ? '[    0.280140] fb0: EFI VGA frame buffer device (800x600 VESA, nomodeset active - KMS disabled)' 
         : '[    0.280140] drm: KMS active: Direct Rendering Manager initialized (native display resolution)',
       '[    0.410290] Freeing initrd memory: 34120K',
-      '[    0.512000] systemd[1]: Inserted module \'autofs4\'',
-      '[    0.620100] systemd[1]: systemd 255.4 running in system mode',
-      '[  OK  ] Created slice Slice /system/modprobe.',
-      '[  OK  ] Listening on Device-mapper event daemon FIFO.',
-      '[  OK  ] Started File System Check on Root Device.',
-      `[  OK  ] Mounted /sys/fs/cgroup.`,
-      `[  OK  ] Mounted /boot/efi (ESP Partition FAT32).`,
-      '[  OK  ] Reached target System Initialization.',
-      '[  OK  ] Started D-Bus System Message Bus.',
-      `[  OK  ] Started Network Manager (enp1s0 connected: ${state.userConfig.ipMode === 'static' ? state.userConfig.staticIP || '192.168.1.142' : 'DHCP lease active'}).`,
-      `[  OK  ] Reached target Multi-User System.`,
-      '[  OK  ] Started Display Manager / Login Manager.'
+      ...(distro.init === 'openrc'
+        ? [
+            `   OpenRC 0.54 is starting up ${distro.prettyName} (x86_64)`,
+            ' * Starting busybox mdev ... [ ok ]',
+            ' * Loading hardware drivers ... [ ok ]',
+            ...(state.useLvm ? [' * Setting up the Logical Volume Manager ... [ ok ]'] : []),
+            ' * Checking local filesystems ... [ ok ]',
+            ' * Mounting local filesystems ... [ ok ]',
+            ' * Starting networking ...',
+            ' *   eth0 / enp1s0 ... [ ok ]',
+            ...(state.userConfig.enableSSH ? [' * Starting sshd ... [ ok ]'] : [])
+          ]
+        : [
+            '[    0.512000] systemd[1]: Inserted module \'autofs4\'',
+            `[    0.620100] systemd[1]: systemd ${distro.systemdVersion} running in system mode`,
+            '[  OK  ] Created slice Slice /system/modprobe.',
+            '[  OK  ] Listening on Device-mapper event daemon FIFO.',
+            '[  OK  ] Started File System Check on Root Device.',
+            `[  OK  ] Mounted /boot/efi (ESP Partition FAT32).`,
+            '[  OK  ] Reached target System Initialization.',
+            '[  OK  ] Started D-Bus System Message Bus.',
+            distro.network === 'networkmanager'
+              ? '[  OK  ] Started Network Manager.'
+              : distro.network === 'ifupdown'
+                ? '[  OK  ] Finished Raise network interfaces.'
+                : '[  OK  ] Started Network Configuration (systemd-networkd).',
+            `[  OK  ] Reached target Multi-User System.`,
+            ...(state.selectedProfileId === 'server_gui' || state.selectedProfileId === 'workstation_dev'
+              ? ['[  OK  ] Started Display Manager / Login Manager.']
+              : [])
+          ])
     ];
 
     let currentIdx = 0;
+    let finishTimer: ReturnType<typeof setTimeout> | undefined;
     const interval = setInterval(() => {
       if (currentIdx < kernelBootMessages.length) {
-        setVerboseLogs(prev => [...prev, kernelBootMessages[currentIdx]]);
+        const line = kernelBootMessages[currentIdx];
+        setVerboseLogs(prev => [...prev, line]);
         setBootProgressPct(Math.floor(((currentIdx + 1) / kernelBootMessages.length) * 100));
         currentIdx++;
       } else {
         clearInterval(interval);
-        setTimeout(() => {
+        finishTimer = setTimeout(() => {
           setPhase('login_screen');
         }, 1200);
       }
     }, 180);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (finishTimer) clearTimeout(finishTimer);
+    };
   }, [phase, editedCmdline, state]);
 
   // Simulación del arranque silencioso con splash
   useEffect(() => {
     if (phase !== 'kernel_splash_boot') return;
 
+    // Updater puro: solo calcula el porcentaje; la transición la gestiona el efecto siguiente
     const interval = setInterval(() => {
-      setBootProgressPct(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setPhase('login_screen'), 800);
-          return 100;
-        }
-        return prev + 15;
-      });
+      setBootProgressPct(prev => Math.min(prev + 15, 100));
     }, 250);
 
     return () => clearInterval(interval);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'kernel_splash_boot' || bootProgressPct < 100) return;
+    const timer = setTimeout(() => setPhase('login_screen'), 800);
+    return () => clearTimeout(timer);
+  }, [phase, bootProgressPct]);
 
   // Manejo de inicio de sesión
   const handleLogin = (e: React.FormEvent) => {
@@ -194,24 +260,24 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
       newLines.push('# Foco Formativo: Estos son los parámetros exactos con los que el cargador de arranque inició el kernel.');
     } else if (cmd === 'bootctl' || cmd === 'bootctl status') {
       if (state.bootloader?.type === 'systemd_boot') {
-        newLines.push('systemd-boot 255-4.el9');
+        newLines.push(`systemd-boot ${distro.systemdVersion ?? ''}`.trim());
         newLines.push('Architecture: x86-64');
         newLines.push(`Secure Boot: ${state.hardware.secureBoot ? 'enabled' : 'disabled'}`);
         newLines.push('ESP: /boot/efi (/dev/nvme0n1p1)');
         newLines.push('Current Boot Loader Entry:');
-        newLines.push('    title: Enterprise Linux (6.6.14-enterprise.x86_64)');
-        newLines.push('       id: enterprise-linux.conf');
-        newLines.push('   source: /boot/efi/loader/entries/enterprise-linux.conf');
-        newLines.push(`  options: ${editedCmdline.replace('BOOT_IMAGE=/vmlinuz-6.6.14-enterprise ', '')}`);
+        newLines.push(`    title: ${distro.prettyName}`);
+        newLines.push(`       id: ${distro.id}.conf`);
+        newLines.push(`   source: /boot/efi/loader/entries/${distro.id}.conf`);
+        newLines.push(`  options: ${stripBootImage(editedCmdline)}`);
       } else {
-        newLines.push('System is booted via GNU GRUB 2.06 (syslinux/grub-efi protocol).');
+        newLines.push('System is booted via GNU GRUB 2 (not systemd-boot): bootctl only reports firmware info.');
         newLines.push('Run "cat /etc/default/grub" to review active GRUB_CMDLINE_LINUX.');
       }
     } else if (cmd === 'cat /etc/default/grub') {
       newLines.push('GRUB_TIMEOUT=5');
-      newLines.push('GRUB_DISTRIBUTOR="Enterprise Linux"');
+      newLines.push(`GRUB_DISTRIBUTOR="${distro.grub.menuName}"`);
       newLines.push('GRUB_DEFAULT=saved');
-      newLines.push(`GRUB_CMDLINE_LINUX="${editedCmdline.replace('BOOT_IMAGE=/vmlinuz-6.6.14-enterprise ', '')}"`);
+      newLines.push(`GRUB_CMDLINE_LINUX="${stripBootImage(editedCmdline)}"`);
     } else if (cmd.includes('grep') && (cmd.includes('vga') || cmd.includes('mode'))) {
       if (state.bootloader?.noModeSet) {
         newLines.push('[    0.280140] fb0: EFI VGA frame buffer device (800x600 VESA, nomodeset active - KMS disabled)');
@@ -258,12 +324,12 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
         newLines.push('  type:    LUKS2');
         newLines.push('  cipher:  aes-xts-plain64');
         newLines.push('  keysize: 512 bits');
-        newLines.push('  device:  /dev/nvme0n1p3');
+        newLines.push(`  device:  ${luksDevice}`);
       } else {
         newLines.push('cryptsetup: No active dm-crypt devices found.');
       }
     } else if (cmd === 'uname -a') {
-      newLines.push(`Linux ${state.userConfig.hostname} 6.6.14-enterprise #1 SMP PREEMPT_DYNAMIC Fri Oct 10 2026 x86_64 GNU/Linux`);
+      newLines.push(`Linux ${state.userConfig.hostname} ${distro.kernel.release} #1 SMP PREEMPT_DYNAMIC x86_64 ${distro.libc === 'musl' ? 'Linux' : 'GNU/Linux'}`);
     } else if (cmd === 'help') {
       newLines.push('Comandos didácticos disponibles:');
       newLines.push('  cat /proc/cmdline - Inspecciona los parámetros reales del kernel pasados por el bootloader');
@@ -296,11 +362,11 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
         <div className="bg-black border border-slate-800 rounded-xl p-8 max-w-lg mx-auto space-y-6 text-slate-200 shadow-2xl font-mono">
           <div className="flex items-center gap-3 text-amber-400">
             <Lock className="w-6 h-6" />
-            <h3 className="text-base font-bold">systemd-cryptsetup: Desbloqueo de Disco</h3>
+            <h3 className="text-base font-bold">{luksPrompt.title}</h3>
           </div>
 
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Please enter passphrase for disk <span className="text-white">nvme0n1p3 (cryptroot)</span>:
+          <p className="text-xs text-white leading-relaxed whitespace-pre-line">
+            {luksPrompt.text}
           </p>
 
           <form onSubmit={handleUnlockLuks} className="space-y-4">
@@ -339,7 +405,7 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
           </form>
 
           <div className="p-3 bg-slate-900 border border-slate-800 rounded text-[11px] text-slate-400">
-            Foco Formativo: Este es el prompt real de initramfs (dracut) que solicita la clave para derivar la master key mediante Argon2id antes de montar la raíz.
+            Foco Formativo: {luksPrompt.note}
           </div>
         </div>
       )}
@@ -347,21 +413,21 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
       {/* 2. MENÚ DEL GESTOR DE ARRANQUE (GRUB2, SYSTEMD-BOOT O WINDOWS BOOTMGR) */}
       {phase === 'bootloader_menu' && (
         <div className="space-y-4 max-w-xl mx-auto">
-          {/* VARIANTE A: GNU GRUB 2.06 */}
+          {/* VARIANTE A: GNU GRUB 2 */}
           {bootloaderType === 'grub2' && (
             <div className="bg-black border border-slate-800 rounded-xl p-6 space-y-4 text-slate-200 shadow-2xl font-mono">
               <div className="border-b border-slate-800 pb-2.5 flex items-center justify-between text-xs text-slate-400">
-                <span className="text-white font-bold">GNU GRUB version 2.06</span>
-                <span className="text-emerald-400">Modo UEFI (x86_64)</span>
+                <span className="text-white font-bold">GNU GRUB version 2</span>
+                <span className="text-emerald-400">{state.hardware.firmware === 'uefi' ? 'Modo UEFI (x86_64)' : 'Modo BIOS (i386-pc)'}</span>
               </div>
 
               <div className="border border-slate-800 rounded-lg bg-slate-950 p-2 space-y-1 text-xs">
                 <div className="p-2.5 rounded bg-sky-900/70 text-white font-semibold flex items-center justify-between border border-sky-600/60 shadow">
-                  <span>* Enterprise Linux (6.6.14-enterprise.x86_64)</span>
+                  <span>* {grubEntryTitle}</span>
                   <span className="text-[10px] text-sky-300 font-normal">Predeterminado</span>
                 </div>
                 <div className="p-2 text-slate-400 hover:text-white cursor-pointer transition-colors">
-                  Advanced options for Enterprise Linux
+                  Advanced options for {distro.grub.menuName}
                 </div>
                 <div className="p-2 text-slate-400 hover:text-white cursor-pointer transition-colors">
                   UEFI Firmware Settings (BIOS Setup)
@@ -418,14 +484,14 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
           {bootloaderType === 'systemd_boot' && (
             <div className="bg-[#050505] border border-emerald-900/60 rounded-xl p-6 space-y-4 text-emerald-300 shadow-2xl font-mono">
               <div className="border-b border-emerald-900/40 pb-2.5 flex items-center justify-between text-xs text-emerald-400">
-                <span className="font-bold">systemd-boot v255 (Boot Loader Specification)</span>
+                <span className="font-bold">systemd-boot {distro.systemdVersion ?? ''} (Boot Loader Specification)</span>
                 <span className="text-emerald-500 text-[11px]">ESP: /boot/efi</span>
               </div>
 
               <div className="border border-emerald-900/40 rounded-lg bg-black p-3 space-y-1.5 text-xs text-slate-300">
                 <div className="p-2 rounded bg-emerald-950/60 text-white font-bold flex items-center gap-2 border border-emerald-700/60 shadow">
                   <span className="text-emerald-400 font-bold">-&gt;</span>
-                  <span>Enterprise Linux (6.6.14-enterprise.x86_64)</span>
+                  <span>{distro.prettyName}</span>
                   <span className="text-[10px] text-emerald-400 ml-auto font-normal">[default]</span>
                 </div>
                 <div className="p-2 text-slate-500 hover:text-white cursor-pointer transition-colors pl-6">
@@ -434,7 +500,7 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
               </div>
 
               <div className="text-[11px] text-emerald-500/80 flex items-center justify-between pt-1">
-                <span>Entrada leída de: /loader/entries/enterprise-linux.conf</span>
+                <span>Entrada leída de: /loader/entries/{distro.id}.conf</span>
                 <button
                   type="button"
                   onClick={() => setShowKernelEditor(!showKernelEditor)}
@@ -579,7 +645,7 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
 
           <div className="space-y-1">
             <h3 className="font-bold text-white text-base">
-              {state.osType === 'linux' ? 'Enterprise Linux' : 'Windows Server 2025'}
+              {isLinux ? distro.prettyName : 'Windows Server 2025'}
             </h3>
             <p className="text-xs text-slate-400">
               Iniciando el sistema operativo... (quiet splash activo)

@@ -10,7 +10,8 @@
   </p>
 
   <p align="center">
-    <a href="#-capturas-del-simulador"><img src="https://img.shields.io/badge/Demo-Capturas%20Visuales-38bdf8?style=for-the-badge&logo=visualstudiocode" alt="Capturas" /></a>
+    <a href="https://unfantasmaenelsistema.github.io/OS-Intall-Lab/"><img src="https://img.shields.io/badge/Demo-En%20vivo-10b981?style=for-the-badge&logo=githubpages" alt="Demo en vivo" /></a>
+    <a href="#-vistas-del-simulador"><img src="https://img.shields.io/badge/Vistas-Ilustradas-38bdf8?style=for-the-badge&logo=visualstudiocode" alt="Vistas" /></a>
     <a href="#-características-principales"><img src="https://img.shields.io/badge/Tecnologías-React%2019%20%7C%20TS-61dafb?style=for-the-badge&logo=react" alt="React 19" /></a>
     <a href="#-instalación-y-despliegue-rápido"><img src="https://img.shields.io/badge/Build-Vite%208-bd34fe?style=for-the-badge&logo=vite" alt="Vite" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/Licencia-MIT-10b981?style=for-the-badge" alt="Licencia MIT" /></a>
@@ -25,7 +26,7 @@
 ## 📑 Tabla de Contenidos
 
 1. [Acerca del Proyecto](#-acerca-del-proyecto)
-2. [Capturas del Simulador](#-capturas-del-simulador)
+2. [Vistas del Simulador](#-vistas-del-simulador)
    - [1. Configuración de Hardware & Inyector de Caos](#1-configuración-de-hardware--inyector-de-caos)
    - [2. Visualizador de Particionado con Recharts](#2-visualizador-de-particionado-con-recharts)
    - [3. Terminal de Instalación y Kernel Logs en Vivo](#3-terminal-de-instalación-y-kernel-logs-en-vivo)
@@ -33,9 +34,8 @@
 3. [Características Principales](#-características-principales)
 4. [Estructura del Proyecto](#-estructura-del-proyecto)
 5. [Instalación y Despliegue Rápido](#-instalación-y-despliegue-rápido)
-6. [Guía para Subir a GitHub](#-guía-para-subir-a-github)
-7. [Tecnologías Utilizadas](#-tecnologías-utilizadas)
-8. [Créditos y Licencia](#-créditos-y-licencia)
+6. [Tecnologías Utilizadas](#-tecnologías-utilizadas)
+7. [Créditos y Licencia](#-créditos-y-licencia)
 
 ---
 
@@ -46,7 +46,7 @@ El **Simulador de Instalación de Sistemas Operativos** es una aplicación web f
 Permite experimentar sin riesgo de pérdida de datos con los 10 pasos fundamentales en la instalación de servidores y estaciones de trabajo:
 
 ```
-[1. Boot & Hardware] ➔ [2. Regional] ➔ [3. Perfil SO] ➔ [4. Red] ➔ [5. Particionado]
+[1. Boot & Hardware] ➔ [2. Regional] ➔ [3. Distro y Perfil] ➔ [4. Red] ➔ [5. Particionado]
        ➔ [6. Usuarios] ➔ [7. Bootloader] ➔ [8. Confirmación] ➔ [9. Instalación] ➔ [10. Primer Arranque]
 ```
 
@@ -54,7 +54,9 @@ Incorpora un **motor de auditoría y validación en tiempo real** que evalúa la
 
 ---
 
-## 📸 Capturas del Simulador
+## 📸 Vistas del Simulador
+
+> Las imágenes de esta sección son ilustraciones vectoriales (SVG) de cada pantalla, no capturas literales de la aplicación.
 
 ### 1. Configuración de Hardware & Inyector de Caos
 Simula hypervisores (KVM/Proxmox/VMware) o hardware físico bare-metal. Incluye un módulo de **Chaos Engineering** para inducir sectores defectuosos, cortes de red, inestabilidad de memoria RAM (MCE) y estrangulamiento térmico (Thermal Throttling) para comprobar cómo reacciona el instalador y el kernel.
@@ -94,36 +96,40 @@ La interfaz cuenta con un selector de tema (Modo Claro / Modo Oscuro) persistido
 
 ## ⚡ Características Principales
 
-- 🐧 **Soporte Multi-Distribución y Multi-SO**:
-  - **Debian 12 Bookworm** (Estabilidad y FHS clásico).
-  - **Ubuntu 24.04 LTS Noble Numbat** (Cloud, Subiquity y server).
-  - **Arch Linux** (Instalación manual tipo *Arch Way*, pacstrap y modular).
-  - **Fedora 40** (Innovación con Btrfs por defecto y subvolúmenes).
-  - **Alpine Linux** (Ultra-ligero con musl libc y OpenRC).
-  - **Windows Server 2025** (ReFS, BitLocker, PowerShell y particiones MSR).
+- 🐧 **Selector de distribución Linux + Windows Server**: cada distribución cambia de verdad el script, la terminal virtual, la animación de instalación, la línea del kernel, el paso de red y el primer arranque.
+
+  | Distribución | Instalación base | Initramfs | Cargador (UEFI) | Red | Init / LSM |
+  | :--- | :--- | :--- | :--- | :--- | :--- |
+  | **Debian 12 Bookworm** | `debootstrap` + `apt` | initramfs-tools (`/etc/crypttab`) | `grub-install` + `update-grub` | ifupdown | systemd / AppArmor |
+  | **Ubuntu 24.04 LTS** | `debootstrap` + `apt` | initramfs-tools | GRUB firmado + shim | Netplan | systemd / AppArmor |
+  | **Fedora 40** | `dnf --installroot` | dracut (`rd.luks.uuid`) | shim vía `efibootmgr` + `grubby` | NetworkManager | systemd / SELinux |
+  | **Rocky Linux 9.4** | `dnf --installroot` | dracut (`rd.luks.uuid`, `rd.lvm.lv`) | shim vía `efibootmgr` + `grubby` | NetworkManager | systemd / SELinux |
+  | **Arch Linux** | `pacstrap` + `genfstab` | mkinitcpio (HOOKS `encrypt lvm2`) | `grub-install` + `grub-mkconfig` | systemd-networkd | systemd / — |
+  | **Alpine 3.20** | `apk --root` | mkinitfs (`cryptroot=`) | `grub-install` + `grub-mkconfig` | ifupdown-ng | OpenRC / — (musl) |
+  | **Windows Server 2025** | `DISM` | — | `bcdboot` | PowerShell | — |
+
+  - Validaciones propias de cada distribución: Btrfs no soportado en Rocky/RHEL, Secure Boot con cargadores sin firmar (Arch, Alpine), systemd-boot sin empaquetar o sin firmar, musl en perfiles de escritorio, rolling release en servidores, etc.
 
 - 📊 **Visualización de Almacenamiento con Recharts**:
   - Gráfico interactivo de barras apiladas horizontal (`Stacked Bar Chart`).
   - Identificación visual de cada punto de montaje (`/boot/efi`, `/`, `/home`, `/var`, `swap`).
-  - Cálculo automático de inodos proyectados y mapa de calor de bloques.
+  - Mapa visual del disco con modo de mapa de calor (datos calientes / templados / fríos).
 
 - 💥 **Chaos Engineering & Detección de Averías**:
   - Botón *Generar Fallo Aleatorio* para ejercicios didácticos imprevistos.
   - Simulación de sectores defectuosos I/O en bloques LBA críticos.
-  - Comprobación de RAM insuficiente (< 2 GB) con avisos de OOM Killer.
+  - Comprobación de RAM insuficiente según el SO (< 1 GB en Linux, < 2 GB en Windows Server) con avisos de OOM Killer.
   - Alertas automáticas integradas en el contador del validador de cabecera.
 
 - 🔒 **Sistemas de Archivos y Seguridad Empresarial**:
   - Soporte de cifrado **LUKS2** con derivación de claves `Argon2id`.
   - Creación de Grupos de Volúmenes LVM2 y Volúmenes Lógicos redimensionables.
-  - Formateo con banderas específicas: `noatime`, `subvol=@root`, `compress=zstd`.
+  - Montaje con opciones de rendimiento como `noatime` y explicación de cada sistema de archivos (CoW, compresión zstd de Btrfs, journaling de ext4/XFS).
 
-- 📜 **Generador de Automatizaciones DevOps**:
-  - Exporta las decisiones a scripts listos para producción:
-    - **Ansible Playbook**
-    - **Cloud-Init (user-data)**
-    - **Debian Preseed**
-    - **RHEL / Rocky Kickstart**
+- 📜 **Script equivalente y ficheros de configuración**:
+  - El paso de confirmación genera el script de comandos que ejecutaría el instalador de la distribución elegida (`parted`, `cryptsetup`, LVM, `mkfs`, montaje, instalación base, fstab/crypttab, initramfs, cargador, red, servicios y usuario) a partir de tu esquema real de particiones, o el script `diskpart`/`DISM`/`bcdboot` en Windows.
+  - El paso de red genera la configuración equivalente para **Netplan**, **ifupdown**, **NetworkManager (keyfile)**, **systemd-networkd** y **PowerShell**, marcando la que usa la distribución elegida.
+  - ⚠️ Son scripts de referencia formativa: revísalos antes de ejecutarlos, porque borran el disco de destino.
 
 - 🌓 **Selector de Tema Dinámico**:
   - Alternador de Modo Claro / Modo Oscuro en la cabecera.
@@ -135,10 +141,11 @@ La interfaz cuenta con un selector de tema (Modo Claro / Modo Oscuro) persistido
 ## 📂 Estructura del Proyecto
 
 ```text
-simulador-instalacion-so/
+OS-Intall-Lab/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml               # Pipeline de integración continua (Build & Lint)
+│       ├── ci.yml               # Integración continua (Bun: typecheck, tests y build)
+│       └── deploy.yml           # Publicación en GitHub Pages en cada push a main
 ├── docs/
 │   └── screenshots/             # Capturas e ilustraciones vectoriales SVG
 │       ├── banner.svg
@@ -166,15 +173,21 @@ simulador-instalacion-so/
 │   │   └── ThemeContext.tsx     # Contexto de React para modo Claro/Oscuro
 │   ├── types/
 │   │   └── installer.ts         # Definiciones TypeScript de hardware, discos y validaciones
+│   ├── data/
+│   │   └── distros.ts           # Catálogo de distribuciones (paquetes, initramfs, GRUB, red, kernel, LSM)
 │   ├── utils/
 │   │   ├── partitionValidator.ts# Motor de validación de reglas de particionado y hardware
-│   │   └── installerTemplates.ts# Plantillas de automatización (Ansible, Cloud-Init, etc.)
+│   │   ├── distroValidator.ts   # Reglas específicas de cada distribución
+│   │   ├── kernelCmdline.ts     # Línea de comandos del kernel según initramfs, LUKS, LVM y LSM
+│   │   ├── diskLayout.ts        # Traducción del esquema a particiones físicas, PV de LVM y nodos /dev
+│   │   ├── installScript.ts     # Generador del script equivalente (6 distros Linux y Windows)
+│   │   └── *.test.ts            # Tests unitarios con Vitest
 │   ├── App.tsx                  # Componente raíz y máquina de estados del asistente
 │   ├── main.tsx                 # Entrada de la aplicación React 19
 │   └── index.css                # Estilos globales y utilidades de Tailwind CSS v4
-├── .env.example                 # Variables de entorno de ejemplo
 ├── .gitignore                   # Exclusiones de Git (node_modules, dist, etc.)
 ├── LICENSE                      # Licencia de código abierto MIT
+├── bun.lock                     # Lockfile de dependencias (Bun)
 ├── package.json                 # Dependencias y scripts de ejecución
 ├── tsconfig.json                # Configuración de TypeScript
 └── vite.config.ts               # Configuración de compilación con Vite
@@ -184,22 +197,25 @@ simulador-instalacion-so/
 
 ## 🚀 Instalación y Despliegue Rápido
 
+> **Demo en vivo:** https://unfantasmaenelsistema.github.io/OS-Intall-Lab/ — se publica automáticamente en GitHub Pages con cada push a `main` (workflow `deploy.yml`).
+
 ### Requisitos Previos
-- **Node.js**: v20.x o superior
-- **npm**: v10.x o superior (o `pnpm` / `bun`)
+- **Node.js**: v20.19 o superior (requisito de Vite 8)
+- **Bun** (recomendado, el repositorio incluye `bun.lock`) o **npm** v10+
 
 ### Pasos de Instalación
 
 1. **Clonar el repositorio**:
    ```bash
-   git clone https://github.com/unfantasmaenelsistema/simulador-instalacion-so.git
-   cd simulador-instalacion-so
+   git clone https://github.com/unfantasmaenelsistema/OS-Intall-Lab.git
+   cd OS-Intall-Lab
    ```
 
 2. **Instalar dependencias**:
    ```bash
-   npm install
+   bun install
    ```
+   Con npm también funciona (`npm install`), pero las versiones no quedarán fijadas por `bun.lock`.
 
 3. **Iniciar el servidor de desarrollo local**:
    ```bash
@@ -207,41 +223,16 @@ simulador-instalacion-so/
    ```
    Abre tu navegador en `http://localhost:3000`.
 
-4. **Verificar tipos y compilar para producción**:
+4. **Verificar tipos, ejecutar los tests y compilar para producción**:
    ```bash
    npm run lint
+   npm run test
    npm run build
    ```
 
 5. **Previsualizar la compilación de producción**:
    ```bash
    npm run preview
-   ```
-
----
-
-## 🐙 Guía para Subir a GitHub
-
-Sigue estos comandos para publicar este proyecto en tu cuenta de GitHub:
-
-1. **Crea un nuevo repositorio en GitHub** (puedes llamarlo `simulador-instalacion-so` o `os-installation-simulator`). No marques la opción de añadir README ni .gitignore, ya que el proyecto ya los incluye.
-
-2. **Inicializar y vincular el repositorio en tu terminal**:
-   ```bash
-   # Inicializar git si no está inicializado
-   git init -b main
-
-   # Añadir todos los archivos al área de preparación
-   git add .
-
-   # Crear el commit inicial
-   git commit -m "feat: Simulador de Instalación de SO con Recharts, temas y caos de hardware"
-
-   # Vincular tu repositorio remoto de GitHub
-   git remote add origin https://github.com/TU-USUARIO/simulador-instalacion-so.git
-
-   # Subir los cambios a la rama principal
-   git push -u origin main
    ```
 
 ---
@@ -257,7 +248,8 @@ Sigue estos comandos para publicar este proyecto en tu cuenta de GitHub:
 | **Gráficos** | [Recharts](https://recharts.org/) | `^3.10.1` | Gráficos de barras apiladas SVG para particionado |
 | **Iconografía** | [Lucide React](https://lucide.dev/) | `^0.546.0` | Iconos vectoriales limpios y coherentes |
 | **Animaciones** | [Motion](https://motion.dev/) | `^12.23.24` | Transiciones fluidas entre pasos y notificaciones |
-| **CI / CD** | GitHub Actions | `v4` | Integración continua con verificación automática |
+| **Tests** | [Vitest](https://vitest.dev/) | `^5.0.4` | Tests unitarios de validadores, línea del kernel y scripts por distribución |
+| **CI / CD** | GitHub Actions + Bun | `v4` | Typecheck, tests y build en cada push / PR |
 
 ---
 

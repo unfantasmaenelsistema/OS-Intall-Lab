@@ -1,5 +1,8 @@
 export type OSType = 'linux' | 'windows';
 
+/** Distribución concreta cuando osType es 'linux' (catálogo en src/data/distros.ts). */
+export type LinuxDistroId = 'debian' | 'ubuntu' | 'fedora' | 'rocky' | 'arch' | 'alpine';
+
 export type FirmwareType = 'uefi' | 'bios';
 export type BootMediumType = 'usb' | 'iso' | 'pxe';
 
@@ -188,6 +191,7 @@ export interface HardwareFailuresConfig {
 
 export interface InstallerState {
   osType: OSType;
+  distroId: LinuxDistroId;
   currentStep: InstallerStepId;
   hardware: HardwareConfig;
   regional: RegionalConfig;

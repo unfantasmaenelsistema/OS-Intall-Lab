@@ -1,5 +1,6 @@
 import { PARTITION_PRESETS } from '../data/presets';
 import { HardwareConfig, InstallerState } from '../types/installer';
+import { DEFAULT_DISTRO } from '../data/distros';
 
 export const HARDWARE: HardwareConfig = {
   cpuCores: 4,
@@ -16,6 +17,7 @@ export function stateFromPreset(presetId: string, overrides: Partial<InstallerSt
   if (!preset) throw new Error(`Preset desconocido: ${presetId}`);
   return {
     osType: preset.osType,
+    distroId: DEFAULT_DISTRO,
     currentStep: 'summary',
     hardware: HARDWARE,
     regional: { language: 'es_ES', locale: 'es_ES.UTF-8', keyboardLayout: 'es', timezone: 'Europe/Madrid', utcHardwareClock: true },

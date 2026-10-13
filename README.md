@@ -45,7 +45,7 @@ El **Simulador de Instalación de Sistemas Operativos** es una aplicación web f
 Permite experimentar sin riesgo de pérdida de datos con los 10 pasos fundamentales en la instalación de servidores y estaciones de trabajo:
 
 ```
-[1. Boot & Hardware] ➔ [2. Regional] ➔ [3. Perfil SO] ➔ [4. Red] ➔ [5. Particionado]
+[1. Boot & Hardware] ➔ [2. Regional] ➔ [3. Distro y Perfil] ➔ [4. Red] ➔ [5. Particionado]
        ➔ [6. Usuarios] ➔ [7. Bootloader] ➔ [8. Confirmación] ➔ [9. Instalación] ➔ [10. Primer Arranque]
 ```
 
@@ -95,10 +95,19 @@ La interfaz cuenta con un selector de tema (Modo Claro / Modo Oscuro) persistido
 
 ## ⚡ Características Principales
 
-- 🐧 **Dos perfiles de sistema operativo**:
-  - **Linux**: particionado con ext4, XFS, Btrfs, swap, LVM2 y LUKS2. Los comandos de referencia siguen la familia RHEL (Rocky / Alma / Fedora: `dnf`, GRUB 2, `dracut`, NetworkManager).
-  - **Windows Server 2025**: ESP + MSR + NTFS/ReFS, con script de `diskpart`, `DISM` y `bcdboot`.
-  - *Aún no hay selector de distribución*: Debian, Ubuntu, Arch o Alpine solo aparecen como referencia en el contenido formativo.
+- 🐧 **Selector de distribución Linux + Windows Server**: cada distribución cambia de verdad el script, la terminal virtual, la animación de instalación, la línea del kernel, el paso de red y el primer arranque.
+
+  | Distribución | Instalación base | Initramfs | Cargador (UEFI) | Red | Init / LSM |
+  | :--- | :--- | :--- | :--- | :--- | :--- |
+  | **Debian 12 Bookworm** | `debootstrap` + `apt` | initramfs-tools (`/etc/crypttab`) | `grub-install` + `update-grub` | ifupdown | systemd / AppArmor |
+  | **Ubuntu 24.04 LTS** | `debootstrap` + `apt` | initramfs-tools | GRUB firmado + shim | Netplan | systemd / AppArmor |
+  | **Fedora 40** | `dnf --installroot` | dracut (`rd.luks.uuid`) | shim vía `efibootmgr` + `grubby` | NetworkManager | systemd / SELinux |
+  | **Rocky Linux 9.4** | `dnf --installroot` | dracut (`rd.luks.uuid`, `rd.lvm.lv`) | shim vía `efibootmgr` + `grubby` | NetworkManager | systemd / SELinux |
+  | **Arch Linux** | `pacstrap` + `genfstab` | mkinitcpio (HOOKS `encrypt lvm2`) | `grub-install` + `grub-mkconfig` | systemd-networkd | systemd / — |
+  | **Alpine 3.20** | `apk --root` | mkinitfs (`cryptroot=`) | `grub-install` + `grub-mkconfig` | ifupdown-ng | OpenRC / — (musl) |
+  | **Windows Server 2025** | `DISM` | — | `bcdboot` | PowerShell | — |
+
+  - Validaciones propias de cada distribución: Btrfs no soportado en Rocky/RHEL, Secure Boot con cargadores sin firmar (Arch, Alpine), systemd-boot sin empaquetar o sin firmar, musl en perfiles de escritorio, rolling release en servidores, etc.
 
 - 📊 **Visualización de Almacenamiento con Recharts**:
   - Gráfico interactivo de barras apiladas horizontal (`Stacked Bar Chart`).
@@ -117,8 +126,8 @@ La interfaz cuenta con un selector de tema (Modo Claro / Modo Oscuro) persistido
   - Montaje con opciones de rendimiento como `noatime` y explicación de cada sistema de archivos (CoW, compresión zstd de Btrfs, journaling de ext4/XFS).
 
 - 📜 **Script equivalente y ficheros de configuración**:
-  - El paso de confirmación genera el script de comandos que ejecutaría el instalador (`parted`, `cryptsetup`, LVM, `mkfs`, montaje, `chroot`, GRUB/systemd-boot) a partir de tu esquema real de particiones, o el script `diskpart`/`DISM`/`bcdboot` en Windows.
-  - El paso de red genera la configuración equivalente para **Netplan**, **systemd-networkd**, **NetworkManager (keyfile)** y **PowerShell**.
+  - El paso de confirmación genera el script de comandos que ejecutaría el instalador de la distribución elegida (`parted`, `cryptsetup`, LVM, `mkfs`, montaje, instalación base, fstab/crypttab, initramfs, cargador, red, servicios y usuario) a partir de tu esquema real de particiones, o el script `diskpart`/`DISM`/`bcdboot` en Windows.
+  - El paso de red genera la configuración equivalente para **Netplan**, **ifupdown**, **NetworkManager (keyfile)**, **systemd-networkd** y **PowerShell**, marcando la que usa la distribución elegida.
   - ⚠️ Son scripts de referencia formativa: revísalos antes de ejecutarlos, porque borran el disco de destino.
 
 - 🌓 **Selector de Tema Dinámico**:
@@ -162,10 +171,14 @@ OS-Intall-Lab/
 │   │   └── ThemeContext.tsx     # Contexto de React para modo Claro/Oscuro
 │   ├── types/
 │   │   └── installer.ts         # Definiciones TypeScript de hardware, discos y validaciones
+│   ├── data/
+│   │   └── distros.ts           # Catálogo de distribuciones (paquetes, initramfs, GRUB, red, kernel, LSM)
 │   ├── utils/
 │   │   ├── partitionValidator.ts# Motor de validación de reglas de particionado y hardware
+│   │   ├── distroValidator.ts   # Reglas específicas de cada distribución
+│   │   ├── kernelCmdline.ts     # Línea de comandos del kernel según initramfs, LUKS, LVM y LSM
 │   │   ├── diskLayout.ts        # Traducción del esquema a particiones físicas, PV de LVM y nodos /dev
-│   │   ├── installScript.ts     # Generador del script equivalente (Linux y Windows)
+│   │   ├── installScript.ts     # Generador del script equivalente (6 distros Linux y Windows)
 │   │   └── *.test.ts            # Tests unitarios con Vitest
 │   ├── App.tsx                  # Componente raíz y máquina de estados del asistente
 │   ├── main.tsx                 # Entrada de la aplicación React 19
@@ -231,7 +244,7 @@ OS-Intall-Lab/
 | **Gráficos** | [Recharts](https://recharts.org/) | `^3.10.1` | Gráficos de barras apiladas SVG para particionado |
 | **Iconografía** | [Lucide React](https://lucide.dev/) | `^0.546.0` | Iconos vectoriales limpios y coherentes |
 | **Animaciones** | [Motion](https://motion.dev/) | `^12.23.24` | Transiciones fluidas entre pasos y notificaciones |
-| **Tests** | [Vitest](https://vitest.dev/) | `^5.0.4` | Tests unitarios del validador y del generador de scripts |
+| **Tests** | [Vitest](https://vitest.dev/) | `^5.0.4` | Tests unitarios de validadores, línea del kernel y scripts por distribución |
 | **CI / CD** | GitHub Actions + Bun | `v4` | Typecheck, tests y build en cada push / PR |
 
 ---

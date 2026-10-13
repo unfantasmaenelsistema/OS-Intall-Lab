@@ -17,6 +17,8 @@ import { useTheme } from '../context/ThemeContext';
 
 interface HeaderProps {
   osType: OSType;
+  /** Distribución activa, mostrada bajo el logotipo cuando el SO es Linux. */
+  distroName: string;
   onSelectOS: (os: OSType) => void;
   currentStep: InstallerStepId;
   onNavigateStep: (step: InstallerStepId) => void;
@@ -41,6 +43,7 @@ const STEPS: { id: InstallerStepId; label: string }[] = [
 
 export const Header: React.FC<HeaderProps> = ({
   osType,
+  distroName,
   onSelectOS,
   currentStep,
   onNavigateStep,
@@ -78,7 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
             <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-              <span>{osType === 'linux' ? 'Enterprise Linux Simulator' : 'Windows Server 2025 Simulator'}</span>
+              <span>{osType === 'linux' ? `Simulador Linux · ${distroName}` : 'Windows Server 2025 Simulator'}</span>
             </div>
           </div>
         </a>
@@ -95,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Terminal className="w-3.5 h-3.5" />
-            <span>Linux Enterprise</span>
+            <span>Linux</span>
           </button>
           <button
             type="button"

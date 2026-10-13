@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { HardwareConfig, InstallerState } from '../types/installer';
+import { getDistro } from '../data/distros';
 
 export type EventSeverity = 'info' | 'warning' | 'module' | 'driver' | 'hardware';
 
@@ -49,6 +50,8 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
 
   // Generar eventos cronológicos realistas del kernel y subsistemas de hardware
   const events = useMemo<SystemLogEvent[]>(() => {
+    // En Alpine (OpenRC) los módulos los carga modprobe desde el initramfs, no systemd
+    const loader = getDistro(state.distroId).init === 'openrc' ? 'modprobe' : 'systemd[1]';
     const list: SystemLogEvent[] = [];
 
     // 1. Inicialización de placa base y firmware
@@ -117,7 +120,7 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
       kernelTime: '[    0.342100]',
       subsystem: 'MODULES',
       severity: 'module',
-      message: 'systemd[1]: Inserted module \'aesni_intel\' (Intel AES-NI acceleration instructions).',
+      message: `${loader}: Inserted module 'aesni_intel' (Intel AES-NI acceleration instructions).`,
       educationalDetail: 'Carga el controlador del kernel para aprovechar las instrucciones vectoriales AES por hardware del microprocesador.',
       hardwareRepercussion: 'Reduce el impacto del cifrado de disco LUKS2 en un 85%, permitiendo velocidades de transferencia NVMe superiores a 3.5 GB/s sin saturar la CPU.'
     });
@@ -127,7 +130,7 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
       kernelTime: '[    0.412890]',
       subsystem: 'MODULES',
       severity: 'module',
-      message: 'systemd[1]: Inserted module \'crc32c_intel\' (Hardware CRC32c calculation).',
+      message: `${loader}: Inserted module 'crc32c_intel' (Hardware CRC32c calculation).`,
       educationalDetail: 'Módulo del kernel para acelerar el cálculo de sumas de verificación mediante hardware SSE4.2.',
       hardwareRepercussion: 'Vital para XFS y Btrfs: acelera la validación de integridad de metadatos para detectar corrupción silenciosa de datos.'
     });
@@ -160,7 +163,7 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
         kernelTime: '[    1.240500]',
         subsystem: 'CRYPTO',
         severity: 'module',
-        message: 'systemd[1]: Inserted module \'dm_crypt\' (Device Mapper target for transparent disk encryption).',
+        message: `${loader}: Inserted module 'dm_crypt' (Device Mapper target for transparent disk encryption).`,
         educationalDetail: 'Subsistema de cifrado de bloques virtuales del kernel Linux.',
         hardwareRepercussion: 'Permite a cryptsetup crear dispositivos en /dev/mapper/ que descifran datos al vuelo.'
       });
@@ -183,7 +186,7 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
         kernelTime: '[    2.150000]',
         subsystem: 'MODULES',
         severity: 'module',
-        message: 'systemd[1]: Inserted module \'dm_mod\' (Kernel Device Mapper driver).',
+        message: `${loader}: Inserted module 'dm_mod' (Kernel Device Mapper driver).`,
         educationalDetail: 'Capa fundamental de Linux para abstraer dispositivos físicos y mapear bloques dinámicos.',
         hardwareRepercussion: 'Habilita LVM2, RAID por software y multipath sin necesidad de reiniciar la máquina.'
       });
@@ -207,7 +210,7 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
           kernelTime: '[    3.410900]',
           subsystem: 'MODULES',
           severity: 'module',
-          message: 'systemd[1]: Inserted module \'xfs\' (Silicon Graphics XFS filesystem driver with CRC metadatas).',
+          message: `${loader}: Inserted module 'xfs' (Silicon Graphics XFS filesystem driver with CRC metadatas).`,
           educationalDetail: 'Carga el sistema de archivos de alto rendimiento XFS con paralelismo nativo en árboles B-Tree.',
           hardwareRepercussion: 'Excelente velocidad en bases de datos. REPERCUSIÓN: El kernel no soporta reducción de particiones XFS.'
         });
@@ -217,7 +220,7 @@ export const SystemEventLog: React.FC<SystemEventLogProps> = ({
           kernelTime: '[    3.450100]',
           subsystem: 'MODULES',
           severity: 'module',
-          message: 'systemd[1]: Inserted module \'btrfs\' (B-tree CoW filesystem driver with zstd compression).',
+          message: `${loader}: Inserted module 'btrfs' (B-tree CoW filesystem driver with zstd compression).`,
           educationalDetail: 'Driver con arquitectura Copy-on-Write para soporte de snapshots e instantáneas sin coste inicial.',
           hardwareRepercussion: 'Permite recuperar versiones anteriores de archivos tras actualizaciones defectuosas.'
         });

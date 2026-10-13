@@ -1,6 +1,7 @@
 import React, { useState, useMemo, lazy, Suspense } from 'react';
 import { 
   OSType, 
+  LinuxDistroId,
   InstallerStepId, 
   InstallerState, 
   DiskDevice, 
@@ -18,6 +19,8 @@ import { SoftwareStep } from './components/SoftwareStep';
 import { Footer } from './components/Footer';
 import { validatePartitionScheme } from './utils/partitionValidator';
 import { PARTITION_PRESETS } from './data/presets';
+import { DEFAULT_DISTRO, distroLabel, getDistro } from './data/distros';
+import { validateDistroChoices } from './utils/distroValidator';
 
 // Los pasos posteriores (y Recharts, usado en el particionado) se cargan bajo demanda
 // para no servir todo el simulador en un único chunk de ~1 MB.
@@ -128,7 +131,7 @@ const INITIAL_NETWORK_LINUX: NetworkConfig = {
     sshPort: 22,
     allowCockpitWebConsole: true,
     allowHttpPackageMirror: true,
-    mirrorUrl: 'https://archive.ubuntu.com/ubuntu',
+    mirrorUrl: getDistro(DEFAULT_DISTRO).mirrorUrl,
     allowVncRemoteViewer: false,
     vncPort: 5901,
   }
@@ -201,6 +204,7 @@ const INITIAL_NETWORK_WINDOWS: NetworkConfig = {
 
 export default function App() {
   const [osType, setOsType] = useState<OSType>('linux');
+  const [distroId, setDistroId] = useState<LinuxDistroId>(DEFAULT_DISTRO);
   const [currentStep, setCurrentStep] = useState<InstallerStepId>('boot');
   const [hardware, setHardware] = useState<HardwareConfig>(INITIAL_HARDWARE);
   const [regional, setRegional] = useState<RegionalConfig>(INITIAL_REGIONAL);
@@ -252,21 +256,19 @@ export default function App() {
     setCurrentStep('boot');
   };
 
-  // Validación didáctica y técnica en tiempo real
-  const validationIssues = useMemo(() => {
-    return validatePartitionScheme(disk, hardware, osType, useLvm, useWholeDiskEncryption);
-  }, [disk, hardware, osType, useLvm, useWholeDiskEncryption]);
-
-  const issueCount = useMemo(() => {
-    return {
-      errors: validationIssues.filter(i => i.type === 'error').length,
-      warnings: validationIssues.filter(i => i.type === 'warning').length,
-    };
-  }, [validationIssues]);
+  // Cambio de distribución: el espejo de paquetes del paso de red pasa a ser el de la nueva distro
+  const handleSelectDistro = (id: LinuxDistroId) => {
+    setDistroId(id);
+    setNetwork(prev => ({
+      ...prev,
+      remoteInstallCapabilities: { ...prev.remoteInstallCapabilities, mirrorUrl: getDistro(id).mirrorUrl }
+    }));
+  };
 
   // Construir el estado completo para el motor de retos
   const fullState: InstallerState = useMemo(() => ({
     osType,
+    distroId,
     currentStep,
     hardware,
     regional,
@@ -286,6 +288,7 @@ export default function App() {
     bootDecrypted: !useWholeDiskEncryption,
   }), [
     osType,
+    distroId,
     currentStep,
     hardware,
     regional,
@@ -300,6 +303,19 @@ export default function App() {
     network,
     activeChallengeId,
   ]);
+
+  // Validación didáctica y técnica en tiempo real (esquema de disco + reglas propias de la distribución)
+  const validationIssues = useMemo(() => [
+    ...validatePartitionScheme(disk, hardware, osType, useLvm, useWholeDiskEncryption),
+    ...validateDistroChoices(fullState)
+  ], [disk, hardware, osType, useLvm, useWholeDiskEncryption, fullState]);
+
+  const issueCount = useMemo(() => {
+    return {
+      errors: validationIssues.filter(i => i.type === 'error').length,
+      warnings: validationIssues.filter(i => i.type === 'warning').length,
+    };
+  }, [validationIssues]);
 
   const handleResetSimulation = () => {
     const defaultPreset = PARTITION_PRESETS.find(p => p.osType === osType) || PARTITION_PRESETS[0];
@@ -316,6 +332,7 @@ export default function App() {
       {/* Barra de Navegación y Cabecera Superior */}
       <Header
         osType={osType}
+        distroName={distroLabel(getDistro(distroId))}
         onSelectOS={handleSelectOS}
         currentStep={currentStep}
         onNavigateStep={setCurrentStep}
@@ -350,6 +367,8 @@ export default function App() {
         {currentStep === 'software' && (
           <SoftwareStep
             osType={osType}
+            distroId={distroId}
+            onSelectDistro={handleSelectDistro}
             selectedProfileId={selectedProfileId}
             onSelectProfile={setSelectedProfileId}
             onNext={() => setCurrentStep('network')}
@@ -360,6 +379,7 @@ export default function App() {
         {currentStep === 'network' && (
           <NetworkStep
             osType={osType}
+            distroId={distroId}
             config={network}
             onChange={(updated) => setNetwork(prev => ({ ...prev, ...updated }))}
             onNext={() => setCurrentStep('partitioning')}
@@ -405,6 +425,7 @@ export default function App() {
         {currentStep === 'bootloader' && (
           <BootloaderStep
             osType={osType}
+            state={fullState}
             config={bootloader}
             hardware={hardware}
             disk={disk}

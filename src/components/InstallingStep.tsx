@@ -28,6 +28,8 @@ import { HardwareFailuresControl } from './HardwareFailuresControl';
 import { RescueModeShell } from './RescueModeShell';
 import { KernelPanicScreen } from './KernelPanicScreen';
 import { computeDiskLayout, lvSizeSpec, partedEnd } from '../utils/diskLayout';
+import { keyInstallCommands } from '../utils/installScript';
+import { getDistro } from '../data/distros';
 
 interface InstallingStepProps {
   state: InstallerState;
@@ -78,6 +80,9 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
   const hasSeparateBoot = state.disk.partitions.some(p => p.mountPoint === '/boot');
   const lvNames = layout.logicalVolumes.map(lv => lv.lvmLVName || lv.id);
   const isUefi = state.hardware.firmware === 'uefi';
+  const distro = getDistro(state.distroId);
+  const keyCmds = keyInstallCommands(state);
+  const isLinux = state.osType === 'linux';
 
   // Mapeo detallado de etapas del instalador y comandos de bajo nivel ejecutados
   const installPhases = [
@@ -153,31 +158,35 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
     },
     {
       pct: 78,
-      phase: 'Descomprimiendo paquetes del sistema operativo en el árbol /mnt',
-      cmd: `dnf --installroot=/mnt groupinstall -y "Core" "Standard"`,
-      log: `[  7.820] rpm/dpkg: unpacked 1,482 packages (glibc, systemd, kernel-core)`
+      phase: isLinux
+        ? `Instalando el sistema base de ${distro.prettyName} en /mnt con ${distro.packageManager}`
+        : 'Descomprimiendo paquetes del sistema operativo en el árbol /mnt',
+      cmd: keyCmds.baseInstall,
+      log: `[  7.820] ${distro.packageManager}: unpacked base system (${distro.libc}, ${distro.init}, kernel ${distro.kernel.release})`
     },
     {
       pct: 88,
-      phase: 'Generando imagen initramfs con soporte criptográfico dm-crypt y LVM',
-      cmd: `chroot /mnt dracut --regenerate-all --force`,
-      log: `[  8.940] dracut: included kernel modules for aes-ni, dm-crypt, device-mapper`
+      phase: `Generando el initramfs con ${distro.initramfs}${state.useWholeDiskEncryption ? ' (dm-crypt' + (state.useLvm ? ' + LVM)' : ')') : state.useLvm ? ' (LVM)' : ''}`,
+      cmd: keyCmds.initramfs,
+      log: `[  8.940] ${distro.initramfs}: image /boot/${distro.kernel.initrd} created`
     },
     {
       pct: 95,
-      phase: isUefi
-        ? 'Instalando gestor de arranque GRUB 2 en /boot/efi y registrando en NVRAM'
-        : `Instalando GRUB 2 (i386-pc) en el sector de arranque de ${state.disk.devicePath}`,
-      cmd: isUefi
-        ? `chroot /mnt grub2-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=rocky`
-        : `chroot /mnt grub2-install --target=i386-pc ${state.disk.devicePath}`,
+      phase: state.bootloader?.type === 'systemd_boot'
+        ? 'Instalando systemd-boot en la ESP y registrando en NVRAM'
+        : isUefi
+          ? `Registrando el cargador de ${distro.name} en la ESP y en la NVRAM UEFI`
+          : `Instalando GRUB 2 (i386-pc) en el sector de arranque de ${state.disk.devicePath}`,
+      cmd: keyCmds.bootloader,
       log: isUefi
-        ? `[  9.610] grub2-install: bootloader entry registered in UEFI firmware NVRAM`
-        : `[  9.610] grub2-install: core.img embedded, installation finished. No error reported.`
+        ? `[  9.610] efi: boot entry "${distro.grub.menuName}" registered in UEFI firmware NVRAM`
+        : `[  9.610] ${distro.grub.install}: core.img embedded, installation finished. No error reported.`
     },
     {
       pct: 100,
-      phase: 'Finalizando políticas SELinux, sincronizando cachés de disco y desmontando /mnt',
+      phase: distro.lsm?.name === 'SELinux'
+        ? 'Programando el reetiquetado SELinux, sincronizando cachés de disco y desmontando /mnt'
+        : 'Sincronizando cachés de disco y desmontando /mnt',
       cmd: `sync && umount -R /mnt`,
       log: `[ 10.000] installer: sync disk caches, installation completed successfully!`
     }
@@ -471,7 +480,7 @@ export const InstallingStep: React.FC<InstallingStepProps> = ({
             </div>
             <h4 className="font-bold text-white text-sm">El rol del initramfs</h4>
             <p className="text-slate-300 leading-relaxed text-[11px]">
-              La imagen initramfs contiene los módulos mínimos del kernel (controladores NVMe, dm-crypt, LVM) para pedir la contraseña de cifrado y montar la raíz real antes de transferir el control a systemd (PID 1).
+              La imagen initramfs contiene los módulos mínimos del kernel (controladores NVMe, dm-crypt, LVM) para pedir la contraseña de cifrado y montar la raíz real antes de transferir el control a {distro.init === 'openrc' ? 'OpenRC (init de BusyBox, PID 1)' : 'systemd (PID 1)'}.
             </p>
           </div>
         </div>

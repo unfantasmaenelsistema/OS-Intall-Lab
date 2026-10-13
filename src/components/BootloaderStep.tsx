@@ -18,10 +18,14 @@ import {
   Sliders,
   Settings
 } from 'lucide-react';
-import { BootloaderConfig, BootloaderType, HardwareConfig, DiskDevice, OSType } from '../types/installer';
+import { BootloaderConfig, BootloaderType, HardwareConfig, DiskDevice, InstallerState, OSType } from '../types/installer';
+import { getDistro } from '../data/distros';
+import { buildKernelCmdline, procCmdline } from '../utils/kernelCmdline';
 
 interface BootloaderStepProps {
   osType: OSType;
+  /** Estado completo: la línea del kernel depende de la distro, el disco, LVM y LUKS. */
+  state: InstallerState;
   config: BootloaderConfig;
   hardware: HardwareConfig;
   disk: DiskDevice;
@@ -32,6 +36,7 @@ interface BootloaderStepProps {
 
 export const BootloaderStep: React.FC<BootloaderStepProps> = ({
   osType,
+  state,
   config,
   hardware,
   disk,
@@ -63,33 +68,18 @@ export const BootloaderStep: React.FC<BootloaderStepProps> = ({
     onChange({ customParameters: parts.join(' ') });
   };
 
-  // Construir la línea de comandos completa del kernel
-  const buildCommandLine = (): string => {
-    const parts: string[] = [];
-    parts.push('BOOT_IMAGE=/vmlinuz-6.6.14-enterprise');
-    parts.push('root=/dev/mapper/vg_system-lv_root');
-    parts.push('ro');
+  // Construir la línea de comandos completa del kernel (tal como la verá /proc/cmdline)
+  const distro = getDistro(state.distroId);
+  const liveState: InstallerState = { ...state, bootloader: config };
+  const buildCommandLine = (): string => procCmdline(liveState);
+  const kernelArgs = buildKernelCmdline(liveState);
 
-    if (config.quietSplash) {
-      parts.push('quiet splash');
-    }
-    if (config.noModeSet) {
-      parts.push('nomodeset');
-    }
-    if (config.selinuxEnforcing) {
-      parts.push('selinux=1 enforcing=1');
-    } else {
-      parts.push('selinux=0');
-    }
-    if (config.auditLogging) {
-      parts.push('audit=1');
-    }
-    if (config.customParameters.trim()) {
-      parts.push(config.customParameters.trim());
-    }
-
-    return parts.join(' ');
-  };
+  // GRUB_DISTRIBUTOR tal como lo escribe cada familia en /etc/default/grub
+  const grubDistributor = distro.family === 'rpm'
+    ? `"$(sed 's, release .*$,,g' /etc/system-release)"`
+    : distro.family === 'deb'
+      ? '`( . /etc/os-release; echo ${NAME:-Debian} ) 2>/dev/null || echo Debian`'
+      : `"${distro.name}"`;
 
   // Generar contenido del fichero de configuración según el gestor seleccionado
   const generateConfigFile = (): { title: string; path: string; content: string } => {
@@ -97,26 +87,27 @@ export const BootloaderStep: React.FC<BootloaderStepProps> = ({
       return {
         title: 'Archivo de Configuración de GRUB2',
         path: '/etc/default/grub',
-        content: `# Configuración generada por el instalador para GRUB 2.06
+        content: `# Configuración generada por el instalador de ${distro.prettyName}
+# Se aplica al regenerar grub.cfg con: ${distro.grub.mkconfig}
 GRUB_TIMEOUT=${config.timeoutSec}
-GRUB_DISTRIBUTOR="$(sed 's, release .*$,,g' /etc/system-release)"
-GRUB_DEFAULT=saved
+GRUB_DISTRIBUTOR=${grubDistributor}
+GRUB_DEFAULT=${distro.family === 'rpm' ? 'saved' : '0'}
+GRUB_CMDLINE_LINUX="${kernelArgs}"${distro.family === 'rpm' ? `
 GRUB_DISABLE_SUBMENU=true
-GRUB_TERMINAL_OUTPUT="console"
-GRUB_CMDLINE_LINUX="${buildCommandLine().replace('BOOT_IMAGE=/vmlinuz-6.6.14-enterprise ', '')}"
 GRUB_DISABLE_RECOVERY="true"
-GRUB_ENABLE_BLSCFG=true`
+GRUB_ENABLE_BLSCFG=true` : ''}${state.useWholeDiskEncryption && !state.disk.partitions.some(p => p.mountPoint === '/boot') ? `
+GRUB_ENABLE_CRYPTODISK=y` : ''}`
       };
     } else if (config.type === 'systemd_boot') {
       return {
         title: 'Entrada Boot Loader Specification (BLS)',
-        path: '/boot/efi/loader/entries/enterprise-linux.conf',
-        content: `# Configuración de systemd-boot (v255)
-title   Enterprise Linux (6.6.14-enterprise.x86_64)
-version 6.6.14
-linux   /vmlinuz-6.6.14-enterprise
-initrd  /initramfs-6.6.14-enterprise.img
-options ${buildCommandLine().replace('BOOT_IMAGE=/vmlinuz-6.6.14-enterprise ', '')}`
+        path: `/boot/efi/loader/entries/${distro.id}.conf`,
+        content: `# Entrada de systemd-boot (Boot Loader Specification)
+title   ${distro.prettyName}
+version ${distro.kernel.release}
+linux   /${distro.kernel.vmlinuz}
+initrd  /${distro.kernel.initrd}
+options ${kernelArgs}`
       };
     } else {
       return {
@@ -210,7 +201,7 @@ nx                      OptIn`
               <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-sm text-white flex items-center gap-1.5">
                   <Terminal className="w-4 h-4 text-sky-400" />
-                  <span>GRUB 2.06</span>
+                  <span>GRUB 2</span>
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-sky-950 text-sky-300 border border-sky-800">
                   Estándar GNU
@@ -367,18 +358,31 @@ nx                      OptIn`
 
         {/* Conmutadores adicionales: SELinux y Auditoría */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-          <label className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
-            <div>
-              <span className="font-semibold text-xs text-white block">SELinux en Modo Enforcing</span>
-              <span className="text-[10px] text-slate-400">selinux=1 enforcing=1 (Control de acceso mandatorio)</span>
+          {distro.lsm ? (
+            <label className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
+              <div>
+                <span className="font-semibold text-xs text-white block">
+                  {distro.lsm.name === 'SELinux' ? 'SELinux en Modo Enforcing' : 'AppArmor activo'}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {config.selinuxEnforcing ? distro.lsm.enforceParams : distro.lsm.disableParams} (Control de acceso mandatorio)
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={config.selinuxEnforcing}
+                onChange={(e) => onChange({ selinuxEnforcing: e.target.checked })}
+                className="w-4 h-4 accent-emerald-500 rounded"
+              />
+            </label>
+          ) : (
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+              <span className="font-semibold text-xs text-white block">Sin LSM por defecto</span>
+              <span className="text-[10px] text-slate-400">
+                {distro.name} no activa SELinux ni AppArmor en la instalación base: no se añade ningún parámetro.
+              </span>
             </div>
-            <input
-              type="checkbox"
-              checked={config.selinuxEnforcing}
-              onChange={(e) => onChange({ selinuxEnforcing: e.target.checked })}
-              className="w-4 h-4 accent-emerald-500 rounded"
-            />
-          </label>
+          )}
 
           <label className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800 cursor-pointer hover:border-slate-700">
             <div>
@@ -483,7 +487,7 @@ nx                      OptIn`
         <p className="text-slate-300 text-[11px] leading-relaxed">
           Los parámetros configurados aquí se transferirán directamente al paso de <strong>Primer Arranque</strong>:
           {config.type === 'systemd_boot' && ' Verás la pantalla de selección simplificada de systemd-boot.'}
-          {config.type === 'grub2' && ' Verás el menú interactivo de GNU GRUB 2.06.'}
+          {config.type === 'grub2' && ' Verás el menú interactivo de GNU GRUB 2.'}
           {config.type === 'windows_bootmgr' && ' Verás el administrador de arranque BCD de Windows Server.'}
           {!config.quietSplash && ' Al desactivar quiet splash, observarás el desplazamiento continuo de mensajes del kernel y comprobaciones de systemd antes de llegar a la pantalla de login.'}
           {config.noModeSet && ' Al activar nomodeset, el entorno gráfico arrancará en resolución básica VESA de compatibilidad.'}

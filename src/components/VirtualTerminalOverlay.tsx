@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { InstallerState } from '../types/installer';
 import { computeDiskLayout, lvSizeSpec, partedEnd } from '../utils/diskLayout';
+import { keyInstallCommands } from '../utils/installScript';
+import { getDistro } from '../data/distros';
 
 export type TerminalTheme = 'dark_modern' | 'classic_crt' | 'matrix_green';
 
@@ -158,6 +160,8 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
     const devFor = (p: { id: string; name: string }) => layout.deviceFor[p.id] || p.name;
     const luksDev = layout.luksBacking?.device ?? state.disk.devicePath;
     const rootItem = state.disk.partitions.find(p => p.mountPoint === '/');
+    const distro = getDistro(state.distroId);
+    const keyCmds = keyInstallCommands(state);
 
     // 1. Particionamiento
     list.push({
@@ -380,51 +384,76 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       exitCode: 0
     });
 
-    // 6. Initramfs y Bootloader
+    // 6. Sistema base, initramfs y cargador (según la distribución)
     list.push({
-      id: 'cmd-dracut',
+      id: 'cmd-base-install',
       timestamp: t(sec++),
-      command: `dracut --regenerate-all --force --add "crypt lvm xfs" /mnt/boot/initramfs-linux.img`,
+      command: keyCmds.baseInstall,
       output: [
-        `dracut: Executing: /usr/bin/dracut --regenerate-all --force`,
-        `dracut: *** Including module: bash ***`,
-        `dracut: *** Including module: crypt (dm-crypt & cryptsetup) ***`,
-        `dracut: *** Including module: lvm (device-mapper LVM2) ***`,
-        `dracut: *** Including module: xfs ***`,
-        `dracut: *** Store current command line parameters into /etc/crypttab ***`,
-        `dracut: *** Creating image file '/mnt/boot/initramfs-linux.img' ***`,
-        `dracut: *** Image size: 34.2 MiB (uncompressed: 86.1 MiB) ***`
+        `${distro.packageManager}: resolving dependencies from ${distro.mirrorUrl}`,
+        `${distro.packageManager}: installing base system into /mnt (${distro.libc}, ${distro.init}, kernel ${distro.kernel.release})`,
+        `${distro.packageManager}: base system installed successfully.`
       ],
-      category: 'bootloader',
-      educationalNote: `Genera la imagen del disco RAM inicial (initramfs). Es un mini-sistema operativo que el procesador carga en la memoria RAM para pedir la clave LUKS y activar los volúmenes LVM antes de que exista el sistema real.`,
+      category: 'system',
+      educationalNote: {
+        deb: 'debootstrap descarga los paquetes "essential" de Debian/Ubuntu y crea un sistema mínimo en /mnt; el kernel y el resto se instalan después con apt dentro del chroot.',
+        rpm: 'dnf --installroot instala los paquetes RPM directamente en /mnt usando los repositorios del sistema live; @core es el grupo mínimo de la familia Red Hat.',
+        pacman: 'pacstrap (arch-install-scripts) instala el grupo base, el kernel y el firmware en /mnt; -K inicializa un anillo de claves pacman propio en el destino.',
+        apk: 'apk --root --initdb crea una base de datos de paquetes vacía en /mnt e instala alpine-base (BusyBox, musl y OpenRC); es lo que hace setup-disk por debajo.'
+      }[distro.family],
       exitCode: 0
     });
 
     list.push({
-      id: 'cmd-grub-install',
+      id: 'cmd-initramfs',
       timestamp: t(sec++),
-      command: `grub2-install --target=x86_64-efi --efi-directory=/mnt/boot/efi --bootloader-id=rocky --recheck`,
+      command: keyCmds.initramfs,
       output: [
-        `Installing for x86_64-efi platform.`,
-        `Created EFI boot entry: /boot/efi/EFI/rocky/grubx64.efi`,
-        `Registering entry in NVRAM with efibootmgr: 'Boot0001* Rocky Linux'`,
-        `Installation finished. No error reported.`
+        `${distro.initramfs}: building image for kernel ${distro.kernel.release}`,
+        ...(state.useWholeDiskEncryption ? [`${distro.initramfs}: including dm-crypt / cryptsetup support`] : []),
+        ...(state.useLvm ? [`${distro.initramfs}: including LVM2 (device-mapper) support`] : []),
+        `${distro.initramfs}: created /boot/${distro.kernel.initrd}`
       ],
       category: 'bootloader',
-      educationalNote: `Copia el cargador GRUB en la partición ESP y registra la entrada en la memoria NVRAM de la placa base UEFI para que la máquina sepa arrancar este sistema por defecto.`,
+      educationalNote: {
+        'initramfs-tools': 'update-initramfs regenera el initrd de Debian/Ubuntu. Los hooks de cryptsetup-initramfs y lvm2 leen /etc/crypttab para saber qué volumen desbloquear.',
+        dracut: 'dracut construye el initramfs de la familia Red Hat por módulos (crypt, lvm…). El volumen se localiza con los parámetros rd.luks.uuid y rd.lvm.lv.',
+        mkinitcpio: 'mkinitcpio -P regenera los initramfs de todos los kernels de Arch. Solo incluye lo que indiquen los HOOKS de /etc/mkinitcpio.conf: sin encrypt o lvm2 la raíz no se encuentra.',
+        mkinitfs: 'mkinitfs genera el initramfs de Alpine a partir de las "features" de /etc/mkinitfs/mkinitfs.conf (cryptsetup, lvm…); el volumen se indica con cryptroot= en la línea del kernel.'
+      }[distro.initramfs],
+      exitCode: 0
+    });
+
+    list.push({
+      id: 'cmd-bootloader',
+      timestamp: t(sec++),
+      command: keyCmds.bootloader,
+      output: state.bootloader?.type === 'systemd_boot'
+        ? ['Copied "/usr/lib/systemd/boot/efi/systemd-bootx64.efi" to "/boot/efi/EFI/systemd/systemd-bootx64.efi".', 'Created EFI boot entry "Linux Boot Manager".']
+        : state.hardware.firmware === 'uefi'
+          ? [`Boot entry added: Boot0001* ${distro.grub.menuName}`, `Loader: \EFI\${distro.grub.efiId}\${distro.family === 'rpm' ? 'shimx64.efi' : 'grubx64.efi'}`]
+          : ['Installing for i386-pc platform.', 'Installation finished. No error reported.'],
+      category: 'bootloader',
+      educationalNote: distro.family === 'rpm' && state.hardware.firmware === 'uefi'
+        ? `En ${distro.name} los binarios firmados (shim → GRUB) ya los instala el paquete; basta con registrar shimx64.efi en la NVRAM con efibootmgr para conservar Secure Boot.`
+        : 'Copia el cargador a la ESP (o al sector de arranque en BIOS) y registra la entrada en la NVRAM de la placa base para que la máquina arranque este sistema por defecto.',
       exitCode: 0
     });
 
     list.push({
       id: 'cmd-useradd',
       timestamp: t(sec++),
-      command: `chroot /mnt useradd -m -s /bin/bash -G wheel "${state.userConfig.adminUsername}"`,
+      command: distro.family === 'apk'
+        ? `chroot /mnt adduser -D -s ${distro.defaultShell} "${state.userConfig.adminUsername}" && chroot /mnt addgroup "${state.userConfig.adminUsername}" ${distro.adminGroup}`
+        : `${distro.family === 'pacman' ? 'arch-chroot' : 'chroot'} /mnt useradd -m -s ${distro.defaultShell} -G ${distro.adminGroup} "${state.userConfig.adminUsername}"`,
       output: [
         `User '${state.userConfig.adminUsername}' created with home directory /home/${state.userConfig.adminUsername}.`,
-        `Added user to supplementary administrative group: wheel.`
+        `Added user to supplementary administrative group: ${distro.adminGroup}.`
       ],
       category: 'system',
-      educationalNote: `Añade el usuario al grupo 'wheel' dentro del entorno chroot. Esto le concede derechos de elevación mediante sudo según la política de seguridad /etc/sudoers.`,
+      educationalNote: distro.adminGroup === 'sudo'
+        ? `En ${distro.name} el grupo administrativo es 'sudo' (no 'wheel'): /etc/sudoers ya concede privilegios a %sudo.`
+        : `Añade el usuario al grupo 'wheel'. ${distro.family === 'apk' ? 'En Alpine hay que instalar sudo o doas y permitir al grupo wheel en su configuración.' : 'La política de /etc/sudoers concede privilegios a %wheel.'}`,
       exitCode: 0
     });
 
@@ -449,10 +478,10 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
       list.push({
         id: 'cmd-fail-net-disconnect',
         timestamp: t(sec++),
-        command: `curl -sSf https://repo.rockylinux.org/pub/rocky/9/BaseOS/x86_64/os/repodata/repomd.xml -o /tmp/repomd.xml`,
+        command: `curl -sSfI ${distro.mirrorUrl}/`,
         output: [
           `curl: (7) Couldn't connect to server: Network is unreachable (enp1s0 carrier down)`,
-          `dnf: [Errno 14] curl#7 - "Couldn't connect to server: Network is unreachable"`
+          `${distro.packageManager}: failed to fetch package index from ${distro.mirrorUrl}`
         ],
         category: 'system',
         educationalNote: 'El kernel detecta interfaz enp1s0 sin portadora física (Link is DOWN). El instalador suspende la descarga remota.',
@@ -467,7 +496,7 @@ export const VirtualTerminalOverlay: React.FC<VirtualTerminalOverlayProps> = ({
         command: `dmesg | grep -i "hardware error"`,
         output: [
           `[  3.890120] [Hardware Error]: CPU 0: Machine Check Exception (MCE): Bank 5: Memory Controller uncorrected ECC error`,
-          `[  3.890130] kernel: Tainted: G        W   M    6.6.14 #1`
+          `[  3.890130] kernel: Tainted: G        W   M    ${distro.kernel.release} #1`
         ],
         category: 'system',
         educationalNote: 'Excepción MCE de memoria detectada. Se aconseja detener la instalación para evitar corrupción de datos en el sistema de archivos.',

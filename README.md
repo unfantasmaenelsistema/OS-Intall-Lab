@@ -192,7 +192,7 @@ simulador-instalacion-so/
 
 1. **Clonar el repositorio**:
    ```bash
-   git clone https://github.com/TU-USUARIO/simulador-instalacion-so.git
+   git clone https://github.com/unfantasmaenelsistema/simulador-instalacion-so.git
    cd simulador-instalacion-so
    ```
 

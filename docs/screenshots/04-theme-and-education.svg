@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%" style="background:#090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <filter id="shadow4" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="680" fill="#0b0f19"/>
+
+  <!-- Left Half: Dark Mode Preview -->
+  <g transform="translate(30, 40)" filter="url(#shadow4)">
+    <rect width="550" height="600" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+    <!-- Window Bar -->
+    <rect x="0" y="0" width="550" height="42" rx="12 12 0 0" fill="#1e293b"/>
+    <circle cx="20" cy="21" r="5" fill="#ef4444"/>
+    <circle cx="36" cy="21" r="5" fill="#f59e0b"/>
+    <circle cx="52" cy="21" r="5" fill="#10b981"/>
+    <text x="75" y="26" fill="#cbd5e1" font-size="12" font-weight="700">🌙 Modo Oscuro (Persistido en localStorage)</text>
+    
+    <!-- Theme Switcher Badge -->
+    <rect x="440" y="10" width="90" height="22" rx="11" fill="#334155"/>
+    <circle cx="452" cy="21" r="8" fill="#fbbf24"/>
+    <text x="466" y="25" fill="#f8fafc" font-size="10" font-weight="600">Oscuro</text>
+
+    <!-- Content: Educational Drawer -->
+    <g transform="translate(20, 60)">
+      <rect width="510" height="70" rx="8" fill="#1e1b4b" stroke="#4338ca"/>
+      <text x="16" y="24" fill="#c084fc" font-size="13" font-weight="700">📚 Foco Formativo Activo: FHS &amp; Particionamiento</text>
+      <text x="16" y="44" fill="#e9d5ff" font-size="11">Aprende los estándares de la industria, seguridad en producción y dimensionamiento.</text>
+
+      <!-- Topic Card 1 -->
+      <g transform="translate(0, 84)">
+        <rect width="510" height="85" rx="8" fill="#18181b" stroke="#27272a"/>
+        <text x="16" y="22" fill="#38bdf8" font-size="12" font-weight="700">LVM2 (Logical Volume Manager): Flexibilidad en Caliente</text>
+        <text x="16" y="40" fill="#94a3b8" font-size="11">Permite agrupar discos físicos (PV) en Grupos de Volúmenes (VG) y crear</text>
+        <text x="16" y="56" fill="#94a3b8" font-size="11">Volúmenes Lógicos (LV) ampliables online sin reiniciar la máquina ni desmontar.</text>
+      </g>
+
+      <!-- Topic Card 2 -->
+      <g transform="translate(0, 180)">
+        <rect width="510" height="85" rx="8" fill="#18181b" stroke="#27272a"/>
+        <text x="16" y="22" fill="#34d399" font-size="12" font-weight="700">Cifrado LUKS2 + dm-crypt con Argon2id</text>
+        <text x="16" y="40" fill="#94a3b8" font-size="11">Protección criptográfica a nivel de bloque con resistencia contra ataques</text>
+        <text x="16" y="56" fill="#94a3b8" font-size="11">por fuerza bruta mediante derivación de claves exigente en memoria RAM.</text>
+      </g>
+
+      <!-- Topic Card 3 -->
+      <g transform="translate(0, 276)">
+        <rect width="510" height="85" rx="8" fill="#18181b" stroke="#27272a"/>
+        <text x="16" y="22" fill="#fbbf24" font-size="12" font-weight="700">Inodos y Estructuras de Datos de Sistemas de Archivos</text>
+        <text x="16" y="40" fill="#94a3b8" font-size="11">ext4 define inodos fijos al formatear (riesgo de agotamiento con millones de</text>
+        <text x="16" y="56" fill="#94a3b8" font-size="11">archivos pequeños), mientras que XFS y Btrfs los asignan dinámicamente.</text>
+      </g>
+
+      <!-- Topic Card 4 -->
+      <g transform="translate(0, 372)">
+        <rect width="510" height="85" rx="8" fill="#18181b" stroke="#27272a"/>
+        <text x="16" y="22" fill="#f87171" font-size="12" font-weight="700">Detección Automática de Errores &amp; Reglas de Seguridad</text>
+        <text x="16" y="40" fill="#94a3b8" font-size="11">El validador inspecciona montajes obligatorios, firmware UEFI/BIOS,</text>
+        <text x="16" y="56" fill="#94a3b8" font-size="11">ausencia de swap en servidores, y compatibilidad con Secure Boot.</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Right Half: Light Mode Preview -->
+  <g transform="translate(620, 40)" filter="url(#shadow4)">
+    <rect width="550" height="600" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+    <!-- Window Bar -->
+    <rect x="0" y="0" width="550" height="42" rx="12 12 0 0" fill="#f1f5f9"/>
+    <circle cx="20" cy="21" r="5" fill="#ef4444"/>
+    <circle cx="36" cy="21" r="5" fill="#f59e0b"/>
+    <circle cx="52" cy="21" r="5" fill="#10b981"/>
+    <text x="75" y="26" fill="#0f172a" font-size="12" font-weight="700">☀️ Modo Claro (Clean Pro UI)</text>
+    
+    <!-- Theme Switcher Badge -->
+    <rect x="440" y="10" width="90" height="22" rx="11" fill="#e2e8f0"/>
+    <circle cx="518" cy="21" r="8" fill="#3b82f6"/>
+    <text x="456" y="25" fill="#334155" font-size="10" font-weight="600">Claro</text>
+
+    <!-- Content: Light theme Step view -->
+    <g transform="translate(20, 60)">
+      <rect width="510" height="70" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+      <text x="16" y="24" fill="#1d4ed8" font-size="13" font-weight="700">Sistema Operativo Seleccionado: Linux &amp; Windows Server</text>
+      <text x="16" y="44" fill="#1e40af" font-size="11">Soporta Debian, Ubuntu, Arch, Fedora, Alpine Linux y Windows Server 2025.</text>
+
+      <!-- Light Card 1 -->
+      <g transform="translate(0, 84)">
+        <rect width="510" height="85" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="16" y="22" fill="#0284c7" font-size="12" font-weight="700">Esquemas de Particionado Certificados</text>
+        <text x="16" y="40" fill="#475569" font-size="11">Crea particiones con un clic o personaliza puntos de montaje:</text>
+        <text x="16" y="56" fill="#475569" font-size="11">/boot/efi (ESP FAT32), / (ext4/btrfs/xfs), /home, /var, /tmp y [SWAP].</text>
+      </g>
+
+      <!-- Light Card 2 -->
+      <g transform="translate(0, 180)">
+        <rect width="510" height="85" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="16" y="22" fill="#059669" font-size="12" font-weight="700">Gráfico de Uso en Tiempo Real con Recharts</text>
+        <text x="16" y="40" fill="#475569" font-size="11">Barras apiladas interactivas con tooltips detallados de gigabytes,</text>
+        <text x="16" y="56" fill="#475569" font-size="11">inodos proyectados y porcentaje relativo del disco.</text>
+      </g>
+
+      <!-- Light Card 3 -->
+      <g transform="translate(0, 276)">
+        <rect width="510" height="85" rx="8" fill="#fef2f2" stroke="#fecaca"/>
+        <text x="16" y="22" fill="#b91c1c" font-size="12" font-weight="700">Detección de Caos de Hardware</text>
+        <text x="16" y="40" fill="#991b1b" font-size="11">Alertas contextuales cuando se inyectan fallos como falta de memoria,</text>
+        <text x="16" y="56" fill="#991b1b" font-size="11">sectores defectuosos o caída del enlace de red durante la instalación.</text>
+      </g>
+
+      <!-- Light Card 4 -->
+      <g transform="translate(0, 372)">
+        <rect width="510" height="85" rx="8" fill="#f0fdf4" stroke="#bbf7d0"/>
+        <text x="16" y="22" fill="#15803d" font-size="12" font-weight="700">Resumen y Generación de Scripts de Automatización</text>
+        <text x="16" y="40" fill="#166534" font-size="11">Exporta comandos equivalentes para Ansible, Cloud-Init, Kickstart (RHEL)</text>
+        <text x="16" y="56" fill="#166534" font-size="11">y Preseed (Debian) para replicar la instalación en servidores reales.</text>
+      </g>
+    </g>
+  </g>
+</svg>

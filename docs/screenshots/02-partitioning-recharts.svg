@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" width="100%" height="100%" style="background:#090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <linearGradient id="bgGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="efiGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="rootGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="swapGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="homeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <filter id="shadow2" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="700" fill="url(#bgGrad2)"/>
+
+  <!-- Top App Window Header -->
+  <rect x="0" y="0" width="1200" height="56" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <circle cx="28" cy="28" r="6" fill="#ef4444"/>
+  <circle cx="48" cy="28" r="6" fill="#f59e0b"/>
+  <circle cx="68" cy="28" r="6" fill="#10b981"/>
+
+  <g transform="translate(100, 16)">
+    <text x="0" y="17" fill="#f8fafc" font-size="14" font-weight="700">Simulador de Instalación de SO</text>
+    <rect x="230" y="2" width="165" height="20" rx="10" fill="#059669" fill-opacity="0.2" stroke="#10b981" stroke-width="1"/>
+    <text x="242" y="16" fill="#34d399" font-size="11" font-weight="600">Paso 5: Particionado Disco</text>
+  </g>
+
+  <!-- Step Bar -->
+  <rect x="30" y="72" width="1140" height="36" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <g transform="translate(46, 82)">
+    <text x="0" y="14" fill="#10b981" font-size="11">1. Boot ✓</text>
+    <text x="75" y="14" fill="#10b981" font-size="11">2. Regional ✓</text>
+    <text x="170" y="14" fill="#10b981" font-size="11">3. Software ✓</text>
+    <text x="265" y="14" fill="#10b981" font-size="11">4. Red ✓</text>
+    <rect x="330" y="-4" width="125" height="24" rx="4" fill="#2563eb"/>
+    <text x="340" y="13" fill="#ffffff" font-size="11" font-weight="700">5. Particionado •</text>
+    <text x="475" y="14" fill="#94a3b8" font-size="11">6. Usuarios</text>
+    <text x="565" y="14" fill="#94a3b8" font-size="11">7. Bootloader</text>
+    <text x="670" y="14" fill="#94a3b8" font-size="11">8. Confirmación</text>
+    <text x="785" y="14" fill="#94a3b8" font-size="11">9. Instalación</text>
+  </g>
+
+  <!-- Recharts Stacked Bar Chart Card (Width 1140) -->
+  <g transform="translate(30, 126)" filter="url(#shadow2)">
+    <rect width="1140" height="210" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    
+    <!-- Header of Stacked Bar Card -->
+    <g transform="translate(24, 20)">
+      <text x="0" y="16" fill="#f8fafc" font-size="15" font-weight="700">📊 Distribución de Particiones del Disco (Recharts Stacked Bar)</text>
+      <text x="0" y="34" fill="#64748b" font-size="11">Visualización del mapa de bloques proporcional de /dev/nvme0n1 (512 GB totales)</text>
+      
+      <!-- Chart mode switches -->
+      <g transform="translate(760, 2)">
+        <rect x="0" y="0" width="160" height="28" rx="6" fill="#2563eb"/>
+        <text x="14" y="18" fill="#ffffff" font-size="11" font-weight="600">Esquema Global (100%)</text>
+        <rect x="170" y="0" width="160" height="28" rx="6" fill="#1e293b" stroke="#334155"/>
+        <text x="186" y="18" fill="#94a3b8" font-size="11">Ocupación / Inodos</text>
+      </g>
+    </g>
+
+    <!-- The Stacked Bar (Recharts visual recreation) -->
+    <g transform="translate(24, 78)">
+      <!-- Base container for stacked bar -->
+      <rect x="0" y="0" width="1092" height="48" rx="8" fill="#1e293b"/>
+
+      <!-- Partition 1: EFI System /boot/efi (1.0 GB ~ 25px) -->
+      <rect x="0" y="0" width="30" height="48" rx="8 0 0 8" fill="url(#efiGrad)"/>
+      
+      <!-- Partition 2: /boot ext4 (2.0 GB ~ 45px) -->
+      <rect x="30" y="0" width="45" height="48" fill="#0284c7"/>
+
+      <!-- Partition 3: / Root ext4 (120 GB ~ 280px) -->
+      <rect x="75" y="0" width="280" height="48" fill="url(#rootGrad)"/>
+
+      <!-- Partition 4: Swap linux-swap (16 GB ~ 55px) -->
+      <rect x="355" y="0" width="55" height="48" fill="url(#swapGrad)"/>
+
+      <!-- Partition 5: /home btrfs LUKS2 (250 GB ~ 520px) -->
+      <rect x="410" y="0" width="520" height="48" fill="url(#homeGrad)"/>
+
+      <!-- Free unallocated space (123 GB ~ 162px) -->
+      <rect x="930" y="0" width="162" height="48" rx="0 8 8 0" fill="#334155" stroke="#475569" stroke-dasharray="4,4"/>
+
+      <!-- Text inside segments -->
+      <text x="80" y="28" fill="#ffffff" font-size="11" font-weight="700">/ (120 GB - ext4)</text>
+      <text x="360" y="28" fill="#ffffff" font-size="10" font-weight="600">swap</text>
+      <text x="580" y="28" fill="#ffffff" font-size="12" font-weight="700">🔒 /home (250 GB - Btrfs + LUKS2)</text>
+      <text x="965" y="28" fill="#cbd5e1" font-size="11">Libre: 123 GB</text>
+    </g>
+
+    <!-- Legend & Metrics below the bar -->
+    <g transform="translate(24, 148)">
+      <!-- Legend items -->
+      <g transform="translate(0, 0)">
+        <rect width="12" height="12" rx="3" fill="#38bdf8"/>
+        <text x="20" y="10" fill="#94a3b8" font-size="11">/boot/efi (FAT32, ESP) 1 GB</text>
+      </g>
+      <g transform="translate(210, 0)">
+        <rect width="12" height="12" rx="3" fill="#60a5fa"/>
+        <text x="20" y="10" fill="#94a3b8" font-size="11">/ (ext4, Raíz SO) 120 GB</text>
+      </g>
+      <g transform="translate(410, 0)">
+        <rect width="12" height="12" rx="3" fill="#fbbf24"/>
+        <text x="20" y="10" fill="#94a3b8" font-size="11">swap (Linux Swap) 16 GB</text>
+      </g>
+      <g transform="translate(600, 0)">
+        <rect width="12" height="12" rx="3" fill="#34d399"/>
+        <text x="20" y="10" fill="#94a3b8" font-size="11">/home (Btrfs, LUKS2 Cifrado) 250 GB</text>
+      </g>
+      <g transform="translate(870, 0)">
+        <rect width="12" height="12" rx="3" fill="#64748b"/>
+        <text x="20" y="10" fill="#94a3b8" font-size="11">Espacio Sin Asignar 123 GB</text>
+      </g>
+
+      <!-- Bottom badges -->
+      <g transform="translate(0, 24)">
+        <text x="0" y="16" fill="#38bdf8" font-size="11" font-weight="600">Tabla: GPT (GUID)</text>
+        <text x="140" y="16" fill="#10b981" font-size="11" font-weight="600">Alineación: Óptima 2048 sectores (4K)</text>
+        <text x="410" y="16" fill="#a855f7" font-size="11" font-weight="600">LVM2 Volume Group: vg_system activo</text>
+        <text x="700" y="16" fill="#ec4899" font-size="11" font-weight="600">Cifrado: LUKS2 con Argon2id</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Partition Table Details (Width 1140) -->
+  <g transform="translate(30, 356)" filter="url(#shadow2)">
+    <rect width="1140" height="314" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    
+    <!-- Table Header -->
+    <rect x="0" y="0" width="1140" height="44" rx="12 12 0 0" fill="#1e293b"/>
+    <text x="24" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Dispositivo</text>
+    <text x="170" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Punto Montaje</text>
+    <text x="320" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Sistema Ficheros</text>
+    <text x="480" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Tamaño</text>
+    <text x="590" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Opciones &amp; Banderas</text>
+    <text x="850" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Seguridad / Cifrado</text>
+    <text x="1030" y="26" fill="#cbd5e1" font-size="12" font-weight="700">Acciones</text>
+
+    <!-- Row 1: /dev/nvme0n1p1 -->
+    <g transform="translate(0, 44)">
+      <rect width="1140" height="52" fill="#0b1329"/>
+      <text x="24" y="30" fill="#e2e8f0" font-size="12" font-family="monospace">/dev/nvme0n1p1</text>
+      <text x="170" y="30" fill="#38bdf8" font-size="12" font-weight="600">/boot/efi</text>
+      <rect x="320" y="16" width="70" height="20" rx="4" fill="#0284c7" fill-opacity="0.2"/>
+      <text x="334" y="30" fill="#38bdf8" font-size="11" font-weight="600">FAT32</text>
+      <text x="480" y="30" fill="#94a3b8" font-size="12">1,024 MB</text>
+      <text x="590" y="30" fill="#94a3b8" font-size="11">boot, esp</text>
+      <text x="850" y="30" fill="#64748b" font-size="11">Sin cifrar (Requerido UEFI)</text>
+      <rect x="1030" y="14" width="75" height="24" rx="4" fill="#1e293b" stroke="#334155"/>
+      <text x="1048" y="30" fill="#cbd5e1" font-size="11">Editar</text>
+    </g>
+
+    <!-- Row 2: /dev/nvme0n1p2 (Root) -->
+    <g transform="translate(0, 96)">
+      <rect width="1140" height="52" fill="#0f172a"/>
+      <text x="24" y="30" fill="#e2e8f0" font-size="12" font-family="monospace">/dev/nvme0n1p2</text>
+      <text x="170" y="30" fill="#60a5fa" font-size="12" font-weight="600">/</text>
+      <rect x="320" y="16" width="60" height="20" rx="4" fill="#2563eb" fill-opacity="0.2"/>
+      <text x="336" y="30" fill="#60a5fa" font-size="11" font-weight="600">ext4</text>
+      <text x="480" y="30" fill="#94a3b8" font-size="12">122,880 MB</text>
+      <text x="590" y="30" fill="#94a3b8" font-size="11">rw, noatime, errors=remount-ro</text>
+      <text x="850" y="30" fill="#64748b" font-size="11">Estándar</text>
+      <rect x="1030" y="14" width="75" height="24" rx="4" fill="#1e293b" stroke="#334155"/>
+      <text x="1048" y="30" fill="#cbd5e1" font-size="11">Editar</text>
+    </g>
+
+    <!-- Row 3: /dev/nvme0n1p3 (Swap) -->
+    <g transform="translate(0, 148)">
+      <rect width="1140" height="52" fill="#0b1329"/>
+      <text x="24" y="30" fill="#e2e8f0" font-size="12" font-family="monospace">/dev/nvme0n1p3</text>
+      <text x="170" y="30" fill="#fbbf24" font-size="12" font-weight="600">[SWAP]</text>
+      <rect x="320" y="16" width="90" height="20" rx="4" fill="#d97706" fill-opacity="0.2"/>
+      <text x="330" y="30" fill="#fbbf24" font-size="11" font-weight="600">linux-swap</text>
+      <text x="480" y="30" fill="#94a3b8" font-size="12">16,384 MB</text>
+      <text x="590" y="30" fill="#94a3b8" font-size="11">pri=1, swappiness=10</text>
+      <text x="850" y="30" fill="#64748b" font-size="11">Sin cifrar</text>
+      <rect x="1030" y="14" width="75" height="24" rx="4" fill="#1e293b" stroke="#334155"/>
+      <text x="1048" y="30" fill="#cbd5e1" font-size="11">Editar</text>
+    </g>
+
+    <!-- Row 4: /dev/nvme0n1p4 (LUKS2 + Btrfs Home) -->
+    <g transform="translate(0, 200)">
+      <rect width="1140" height="52" fill="#0f172a"/>
+      <text x="24" y="30" fill="#e2e8f0" font-size="12" font-family="monospace">/dev/nvme0n1p4</text>
+      <text x="170" y="30" fill="#34d399" font-size="12" font-weight="600">/home</text>
+      <rect x="320" y="16" width="65" height="20" rx="4" fill="#059669" fill-opacity="0.2"/>
+      <text x="334" y="30" fill="#34d399" font-size="11" font-weight="600">Btrfs</text>
+      <text x="480" y="30" fill="#94a3b8" font-size="12">256,000 MB</text>
+      <text x="590" y="30" fill="#94a3b8" font-size="11">compress=zstd:1, subvol=@home</text>
+      <rect x="850" y="16" width="130" height="20" rx="10" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-width="1"/>
+      <text x="862" y="30" fill="#34d399" font-size="11" font-weight="600">🔒 LUKS2 Activo</text>
+      <rect x="1030" y="14" width="75" height="24" rx="4" fill="#1e293b" stroke="#334155"/>
+      <text x="1048" y="30" fill="#cbd5e1" font-size="11">Editar</text>
+    </g>
+
+    <!-- Table Bottom Actions -->
+    <g transform="translate(24, 268)">
+      <rect x="0" y="0" width="160" height="32" rx="6" fill="#2563eb"/>
+      <text x="24" y="20" fill="#ffffff" font-size="12" font-weight="600">+ Nueva Partición</text>
+
+      <rect x="180" y="0" width="180" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="198" y="20" fill="#cbd5e1" font-size="12">Configurar Grupo LVM</text>
+
+      <rect x="380" y="0" width="200" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="396" y="20" fill="#cbd5e1" font-size="12">Particionado Automático</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%" style="background:#090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <linearGradient id="bgGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="progressGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="50%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="shadow3" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="680" fill="url(#bgGrad3)"/>
+
+  <!-- Top App Window Header -->
+  <rect x="0" y="0" width="1200" height="56" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <circle cx="28" cy="28" r="6" fill="#ef4444"/>
+  <circle cx="48" cy="28" r="6" fill="#f59e0b"/>
+  <circle cx="68" cy="28" r="6" fill="#10b981"/>
+
+  <g transform="translate(100, 16)">
+    <text x="0" y="17" fill="#f8fafc" font-size="14" font-weight="700">Simulador de Instalación de SO</text>
+    <rect x="230" y="2" width="175" height="20" rx="10" fill="#0284c7" fill-opacity="0.2" stroke="#38bdf8" stroke-width="1"/>
+    <text x="242" y="16" fill="#38bdf8" font-size="11" font-weight="600">Paso 9: Proceso de Instalación</text>
+  </g>
+
+  <!-- Installation Progress Summary Card (Width 1140) -->
+  <g transform="translate(30, 80)" filter="url(#shadow3)">
+    <rect width="1140" height="150" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    
+    <g transform="translate(24, 24)">
+      <text x="0" y="16" fill="#f8fafc" font-size="16" font-weight="700">🚀 Instalando Debian 12 Bookworm (amd64)...</text>
+      <text x="0" y="36" fill="#94a3b8" font-size="12">Fase 6/8: Desplegando paquetes base del sistema y configurando kernel Linux 6.1.0-generic</text>
+
+      <!-- Percentage indicator -->
+      <text x="1040" y="20" fill="#38bdf8" font-size="22" font-weight="800">76%</text>
+
+      <!-- Progress Bar Track -->
+      <g transform="translate(0, 52)">
+        <rect width="1092" height="16" rx="8" fill="#1e293b"/>
+        <rect width="830" height="16" rx="8" fill="url(#progressGrad)"/>
+      </g>
+
+      <!-- Substep status indicators -->
+      <g transform="translate(0, 88)">
+        <text x="0" y="14" fill="#10b981" font-size="11">✓ Formato ext4 en /dev/nvme0n1p2</text>
+        <text x="250" y="14" fill="#10b981" font-size="11">✓ Clave LUKS2 Argon2id</text>
+        <text x="470" y="14" fill="#10b981" font-size="11">✓ debootstrap base</text>
+        <text x="660" y="14" fill="#38bdf8" font-size="11" font-weight="600">▶ Instalando linux-image-amd64</text>
+        <text x="910" y="14" fill="#64748b" font-size="11">○ Generando GRUB EFI</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Left: Live Linux Terminal Logs (Width 740) -->
+  <g transform="translate(30, 250)" filter="url(#shadow3)">
+    <rect width="730" height="400" rx="12" fill="#020617" stroke="#1e293b" stroke-width="1"/>
+    
+    <!-- Terminal Header -->
+    <rect x="0" y="0" width="730" height="36" rx="12 12 0 0" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="22" fill="#94a3b8" font-size="11" font-family="monospace">terminal: /var/log/installer.log | dmesg -w</text>
+    <rect x="630" y="8" width="80" height="20" rx="4" fill="#1e293b"/>
+    <text x="645" y="22" fill="#38bdf8" font-size="10" font-family="monospace">LIVE TAIL</text>
+
+    <!-- Terminal Output -->
+    <g transform="translate(20, 56)" font-family="monospace" font-size="11" fill="#e2e8f0">
+      <text y="14" fill="#10b981">[  OK  ] Mounted /dev/nvme0n1p2 on /target</text>
+      <text y="34" fill="#10b981">[  OK  ] Created EFI directory: /target/boot/efi</text>
+      <text y="54" fill="#38bdf8">[ INFO ] cryptsetup luksOpen /dev/nvme0n1p4 home_crypt --key-slot 0</text>
+      <text y="74" fill="#10b981">[  OK  ] Volume home_crypt mapped to /dev/mapper/home_crypt</text>
+      <text y="94" fill="#94a3b8">[ 12.43] Executing: debootstrap --arch=amd64 bookworm /target</text>
+      <text y="114" fill="#94a3b8">[ 14.10] Unpacking coreutils (9.1-1)...</text>
+      <text y="134" fill="#94a3b8">[ 15.82] Configuring tzdata (2023c-5) for Europe/Madrid...</text>
+      <text y="154" fill="#94a3b8">[ 17.20] Generating locales: es_ES.UTF-8 UTF-8... done</text>
+      <text y="174" fill="#94a3b8">[ 19.55] Writing /target/etc/fstab with UUID identifiers:</text>
+      <text y="194" fill="#64748b">         UUID=8a2f4c91-12... / ext4 defaults,noatime 0 1</text>
+      <text y="214" fill="#64748b">         UUID=4F82-19E4      /boot/efi vfat umask=0077 0 2</text>
+      <text y="234" fill="#38bdf8">[ RUN  ] apt-get install -y linux-image-amd64 grub-efi-amd64</text>
+      <text y="254" fill="#fbbf24">[ WARN ] Thermal sensor: CPU core temp reached 72°C (throttling inactive)</text>
+      <text y="274" fill="#94a3b8">[ 24.18] Building initial ramdisk: update-initramfs -c -k 6.1.0-18-amd64</text>
+      <text y="294" fill="#10b981">[  OK  ] initramfs unpacked and verified with sha256 checksum</text>
+      <text y="314" fill="#38bdf8">▶ cursor blinking_</text>
+    </g>
+  </g>
+
+  <!-- Right: Real-time Educational Auditor & System Telemetry (Width 390) -->
+  <g transform="translate(780, 250)" filter="url(#shadow3)">
+    <rect width="390" height="400" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    
+    <!-- Auditor Header -->
+    <rect x="0" y="0" width="390" height="40" rx="12 12 0 0" fill="#1e1b4b"/>
+    <text x="20" y="25" fill="#c084fc" font-size="13" font-weight="700">🧠 Auditoría Formativa en Vivo</text>
+
+    <!-- Content Items -->
+    <g transform="translate(16, 56)">
+      <!-- Item 1: Swapiness & Hibernation -->
+      <rect x="0" y="0" width="358" height="74" rx="8" fill="#18181b" stroke="#27272a"/>
+      <text x="12" y="20" fill="#38bdf8" font-size="11" font-weight="700">Dimensión de Memoria Swap (16 GB)</text>
+      <text x="12" y="38" fill="#94a3b8" font-size="10">El validador confirmó swap igual a la RAM física para permitir hibernación (suspend-to-disk).</text>
+      <text x="12" y="56" fill="#10b981" font-size="10" font-weight="600">✓ Cumple estándar FHS y kernel suspend</text>
+
+      <!-- Item 2: Secure Boot & ESP -->
+      <g transform="translate(0, 84)">
+        <rect x="0" y="0" width="358" height="74" rx="8" fill="#18181b" stroke="#27272a"/>
+        <text x="12" y="20" fill="#34d399" font-size="11" font-weight="700">Partición ESP /boot/efi (FAT32)</text>
+        <text x="12" y="38" fill="#94a3b8" font-size="10">El cargador shim firmado por Microsoft cargará el binario grubx64.efi sin advertencias de Secure Boot.</text>
+        <text x="12" y="56" fill="#10b981" font-size="10" font-weight="600">✓ Cadena de confianza UEFI intacta</text>
+      </g>
+
+      <!-- Item 3: Hardware Chaos Resilience -->
+      <g transform="translate(0, 168)">
+        <rect x="0" y="0" width="358" height="74" rx="8" fill="#18181b" stroke="#27272a"/>
+        <text x="12" y="20" fill="#fbbf24" font-size="11" font-weight="700">Resiliencia de Hardware</text>
+        <text x="12" y="38" fill="#94a3b8" font-size="10">La memoria RAM supera los 2048 MB mínimos de Debian. No se activaron sectores defectuosos en esta pasada.</text>
+        <text x="12" y="56" fill="#10b981" font-size="10" font-weight="600">✓ I/O en disco saludable</text>
+      </g>
+
+      <!-- Item 4: Educational Drawer Quick Link -->
+      <g transform="translate(0, 252)">
+        <rect x="0" y="0" width="358" height="66" rx="8" fill="#2563eb" fill-opacity="0.1" stroke="#3b82f6"/>
+        <text x="12" y="22" fill="#60a5fa" font-size="11" font-weight="700">📖 Consulta la Guía Didáctica</text>
+        <text x="12" y="40" fill="#cbd5e1" font-size="10">Explicaciones teóricas completas de LVM, LUKS, inodos, MBR vs GPT y permisos POSIX.</text>
+      </g>
+    </g>
+  </g>
+</svg>

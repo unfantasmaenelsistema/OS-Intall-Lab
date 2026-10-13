@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+/* Transiciones suaves entre temas */
+html {
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Modo Oscuro por defecto */
+:root,
+html.dark {
+  color-scheme: dark;
+}
+
+/* Modo Claro: Inversión armoniosa del slate a superficies luminosas tipo enterprise dashboard */
+html.light {
+  color-scheme: light;
+  --color-slate-950: #f8fafc;
+  --color-slate-900: #ffffff;
+  --color-slate-850: #f1f5f9;
+  --color-slate-800: #e2e8f0;
+  --color-slate-700: #cbd5e1;
+  --color-slate-600: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-300: #334155;
+  --color-slate-200: #1e293b;
+  --color-slate-100: #0f172a;
+}
+
+/* En modo claro, los elementos de texto blanco que actúan como encabezados o texto general
+   deben verse oscuros y nítidos, respetando los botones con fondos sólidos de color */
+html.light .text-white:not([data-keep-white]):not(.keep-white):not([class*="bg-emerald-600"]):not([class*="bg-rose-600"]):not([class*="bg-indigo-600"]):not([class*="bg-sky-600"]):not([class*="bg-blue-600"]):not([class*="bg-amber-600"]):not([class*="bg-emerald-500"]):not([class*="bg-rose-500"]):not([class*="bg-indigo-500"]):not([class*="bg-sky-500"]):not(.terminal-window *):not([data-terminal="true"] *) {
+  color: #0f172a;
+}
+
+/* Mantener texto blanco de alto contraste en botones de acción principales */
+html.light .bg-emerald-600,
+html.light .bg-rose-600,
+html.light .bg-indigo-600,
+html.light .bg-sky-600,
+html.light .bg-blue-600,
+html.light .bg-amber-600,
+html.light .bg-emerald-500,
+html.light .bg-rose-500,
+html.light .bg-indigo-500,
+html.light .bg-sky-500 {
+  color: #ffffff !important;
+}
+
+html.light .bg-emerald-600 *,
+html.light .bg-rose-600 *,
+html.light .bg-indigo-600 *,
+html.light .bg-sky-600 *,
+html.light .bg-blue-600 *,
+html.light .bg-amber-600 *,
+html.light .bg-emerald-500 *,
+html.light .bg-rose-500 *,
+html.light .bg-indigo-500 *,
+html.light .bg-sky-500 * {
+  color: #ffffff;
+}
+
+/* Ajustes de contraste para selecciones tintadas en modo claro */
+html.light [class*="bg-emerald-500/15"] {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+html.light [class*="bg-emerald-500/15"] .text-white {
+  color: #065f46 !important;
+}
+
+html.light [class*="bg-sky-500/15"] {
+  background-color: rgba(14, 165, 233, 0.12) !important;
+}
+html.light [class*="bg-sky-500/15"] .text-white {
+  color: #0369a1 !important;
+}
+
+html.light [class*="bg-indigo-500/15"] {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+html.light [class*="bg-indigo-500/15"] .text-white {
+  color: #4338ca !important;
+}
+
+html.light [class*="bg-amber-500/15"] {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+html.light [class*="bg-amber-500/15"] .text-white {
+  color: #92400e !important;
+}
+
+/* Controles de formulario en modo claro */
+html.light input[type="text"],
+html.light input[type="password"],
+html.light select,
+html.light textarea {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+/* Acentos y enlaces en modo claro para máxima legibilidad */
+html.light .text-emerald-400 {
+  color: #059669;
+}
+html.light .text-sky-400 {
+  color: #0284c7;
+}
+html.light .text-amber-400 {
+  color: #d97706;
+}
+html.light .text-rose-400 {
+  color: #e11d48;
+}
+
+/* Sombras refinadas para modo claro */
+html.light .shadow-sm {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+}
+html.light .shadow,
+html.light .shadow-md {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+}
+html.light .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+}
+html.light .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+}
+
+/* Consolas / terminales auténticos (se mantienen oscuros siempre para realismo de hardware) */
+.terminal-window,
+[data-terminal="true"] {
+  --color-slate-950: #020617;
+  --color-slate-900: #0f172a;
+  --color-slate-800: #1e293b;
+  --color-slate-700: #334155;
+  --color-slate-400: #94a3b8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f8fafc;
+  background-color: #020617 !important;
+  color: #f8fafc !important;
+}
+.terminal-window .text-white,
+[data-terminal="true"] .text-white {
+  color: #ffffff !important;
+}

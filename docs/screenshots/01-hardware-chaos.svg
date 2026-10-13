@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" width="100%" height="100%" style="background:#090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="amberCard" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1c1917"/>
+      <stop offset="100%" stop-color="#0c0a09"/>
+    </linearGradient>
+    <linearGradient id="blueCard" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="680" fill="url(#bgGrad)"/>
+
+  <!-- Top App Window Header -->
+  <rect x="0" y="0" width="1200" height="56" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <!-- Window Controls -->
+  <circle cx="28" cy="28" r="6" fill="#ef4444"/>
+  <circle cx="48" cy="28" r="6" fill="#f59e0b"/>
+  <circle cx="68" cy="28" r="6" fill="#10b981"/>
+
+  <!-- App Title & Logo in Window Header -->
+  <g transform="translate(100, 16)">
+    <rect width="24" height="24" rx="4" fill="#38bdf8" opacity="0.2"/>
+    <text x="32" y="17" fill="#f8fafc" font-size="14" font-weight="700" letter-spacing="-0.3">Simulador de Instalación de SO</text>
+    <rect x="250" y="2" width="70" height="20" rx="10" fill="#0284c7" fill-opacity="0.2" stroke="#38bdf8" stroke-width="1"/>
+    <text x="262" y="16" fill="#38bdf8" font-size="11" font-weight="600">Debian 12</text>
+  </g>
+
+  <!-- Header Right Actions -->
+  <g transform="translate(920, 16)">
+    <rect x="0" y="0" width="130" height="24" rx="12" fill="#ef4444" fill-opacity="0.15" stroke="#ef4444" stroke-width="1"/>
+    <text x="12" y="16" fill="#f87171" font-size="11" font-weight="600">2 Fallos de HW</text>
+    <circle cx="160" cy="12" r="12" fill="#1e293b"/>
+    <text x="156" y="16" fill="#fbbf24" font-size="12">🌙</text>
+    <rect x="186" y="0" width="76" height="24" rx="6" fill="#3b82f6"/>
+    <text x="198" y="16" fill="#ffffff" font-size="11" font-weight="600">Foco ON</text>
+  </g>
+
+  <!-- Step Bar -->
+  <rect x="30" y="72" width="1140" height="36" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+  <g transform="translate(46, 82)">
+    <rect x="0" y="0" width="130" height="20" rx="4" fill="#2563eb"/>
+    <text x="12" y="14" fill="#ffffff" font-size="11" font-weight="700">1. Boot &amp; HW ✓</text>
+    <text x="155" y="14" fill="#94a3b8" font-size="11">2. Regional</text>
+    <text x="260" y="14" fill="#94a3b8" font-size="11">3. Perfil SO</text>
+    <text x="365" y="14" fill="#94a3b8" font-size="11">4. Red</text>
+    <text x="440" y="14" fill="#94a3b8" font-size="11">5. Particionado</text>
+    <text x="560" y="14" fill="#94a3b8" font-size="11">6. Usuarios</text>
+    <text x="660" y="14" fill="#94a3b8" font-size="11">7. Bootloader</text>
+    <text x="770" y="14" fill="#94a3b8" font-size="11">8. Confirmación</text>
+    <text x="890" y="14" fill="#94a3b8" font-size="11">9. Instalación</text>
+  </g>
+
+  <!-- Left Column: Hardware Boot Spec (Width 550) -->
+  <g transform="translate(30, 126)" filter="url(#shadow)">
+    <rect width="555" height="524" rx="12" fill="url(#blueCard)" stroke="#1e293b" stroke-width="1"/>
+    
+    <text x="24" y="36" fill="#f8fafc" font-size="16" font-weight="700">⚙️ Configuración de Hardware &amp; Firmware</text>
+    <text x="24" y="56" fill="#64748b" font-size="12">Parámetros del hypervisor o máquina física simulada</text>
+
+    <!-- CPU Cores -->
+    <text x="24" y="96" fill="#cbd5e1" font-size="12" font-weight="600">Núcleos de CPU (vCPU)</text>
+    <g transform="translate(24, 108)">
+      <rect x="0" y="0" width="60" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="22" y="20" fill="#94a3b8" font-size="12">1 Core</text>
+      <rect x="70" y="0" width="60" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="90" y="20" fill="#94a3b8" font-size="12">2 Cores</text>
+      <rect x="140" y="0" width="60" height="32" rx="6" fill="#2563eb" stroke="#3b82f6"/>
+      <text x="160" y="20" fill="#ffffff" font-size="12" font-weight="700">4 Cores</text>
+      <rect x="210" y="0" width="60" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="230" y="20" fill="#94a3b8" font-size="12">8 Cores</text>
+    </g>
+
+    <!-- RAM Allocation -->
+    <text x="24" y="172" fill="#cbd5e1" font-size="12" font-weight="600">Memoria RAM Asignada</text>
+    <g transform="translate(24, 184)">
+      <rect x="0" y="0" width="75" height="32" rx="6" fill="#7f1d1d" fill-opacity="0.4" stroke="#dc2626"/>
+      <text x="14" y="20" fill="#fca5a5" font-size="12" font-weight="600">1 GB (Crítico)</text>
+      <rect x="85" y="0" width="75" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="108" y="20" fill="#94a3b8" font-size="12">2 GB</text>
+      <rect x="170" y="0" width="75" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="194" y="20" fill="#94a3b8" font-size="12">4 GB</text>
+      <rect x="255" y="0" width="75" height="32" rx="6" fill="#2563eb" stroke="#3b82f6"/>
+      <text x="278" y="20" fill="#ffffff" font-size="12" font-weight="700">8 GB</text>
+      <rect x="340" y="0" width="75" height="32" rx="6" fill="#1e293b" stroke="#334155"/>
+      <text x="360" y="20" fill="#94a3b8" font-size="12">16 GB</text>
+    </g>
+
+    <!-- Firmware & Boot -->
+    <text x="24" y="248" fill="#cbd5e1" font-size="12" font-weight="600">Firmware de la Placa Base</text>
+    <g transform="translate(24, 260)">
+      <rect x="0" y="0" width="245" height="48" rx="8" fill="#2563eb" fill-opacity="0.2" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="16" y="22" fill="#60a5fa" font-size="13" font-weight="700">UEFI (Recomendado)</text>
+      <text x="16" y="38" fill="#94a3b8" font-size="10">Soporta particiones GPT y Secure Boot moderno</text>
+
+      <rect x="260" y="0" width="245" height="48" rx="8" fill="#0f172a" stroke="#334155"/>
+      <text x="276" y="22" fill="#94a3b8" font-size="13" font-weight="600">BIOS Heredada (Legacy / CSM)</text>
+      <text x="276" y="38" fill="#64748b" font-size="10">Tabla MBR, límite de 2TB por volumen</text>
+    </g>
+
+    <!-- Secure Boot & Target Disk -->
+    <g transform="translate(24, 326)">
+      <rect x="0" y="0" width="505" height="44" rx="8" fill="#0f172a" stroke="#1e293b"/>
+      <text x="16" y="26" fill="#e2e8f0" font-size="12" font-weight="600">Secure Boot Habilitado</text>
+      <rect x="445" y="10" width="44" height="24" rx="12" fill="#10b981"/>
+      <circle cx="475" cy="22" r="9" fill="#ffffff"/>
+    </g>
+
+    <!-- Disk Storage Spec -->
+    <g transform="translate(24, 386)">
+      <rect x="0" y="0" width="505" height="110" rx="8" fill="#0b1329" stroke="#1e293b"/>
+      <text x="16" y="24" fill="#38bdf8" font-size="12" font-weight="700">DISCO PRIMARIO: /dev/nvme0n1 (512 GB NVMe SSD)</text>
+      <text x="16" y="44" fill="#94a3b8" font-size="11">Velocidad: 3500 MB/s lectura secuencial • Bus PCIe 4.0 x4</text>
+      <!-- Mini storage visual bar -->
+      <rect x="16" y="60" width="473" height="12" rx="4" fill="#1e293b"/>
+      <rect x="16" y="60" width="280" height="12" rx="4" fill="#38bdf8"/>
+      <text x="16" y="92" fill="#64748b" font-size="10">Espacio asignado: 300 GB / 512 GB (Disponibles 212 GB para particionado)</text>
+    </g>
+  </g>
+
+  <!-- Right Column: Chaos Fault Injector & Active Diagnostic (Width 555) -->
+  <g transform="translate(615, 126)" filter="url(#shadow)">
+    <rect width="555" height="524" rx="12" fill="url(#amberCard)" stroke="#3730a3" stroke-width="1"/>
+    
+    <!-- Chaos Injector Header -->
+    <rect x="0" y="0" width="555" height="60" rx="12" fill="#1e1b4b" fill-opacity="0.8"/>
+    <text x="24" y="32" fill="#c084fc" font-size="16" font-weight="700">⚡ Inyector de Fallos de Hardware (Chaos Engineering)</text>
+    <text x="24" y="48" fill="#e9d5ff" font-size="11">Simula averías reales para evaluar los mecanismos del instalador y kernel</text>
+
+    <!-- Chaos Buttons: Random Failures -->
+    <g transform="translate(24, 76)">
+      <rect x="0" y="0" width="240" height="36" rx="8" fill="#9333ea" stroke="#c084fc"/>
+      <text x="34" y="22" fill="#ffffff" font-size="12" font-weight="700">🎲 Generar Fallo Aleatorio</text>
+
+      <rect x="255" y="0" width="250" height="36" rx="8" fill="#1e293b" stroke="#475569"/>
+      <text x="290" y="22" fill="#cbd5e1" font-size="12" font-weight="600">↺ Restablecer Hardware Sano</text>
+    </g>
+
+    <!-- Chaos Fault Toggles -->
+    <g transform="translate(24, 126)">
+      <!-- Bad Sectors Toggle -->
+      <rect x="0" y="0" width="505" height="64" rx="8" fill="#450a0a" fill-opacity="0.5" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="16" y="24" fill="#f87171" font-size="13" font-weight="700">⚠️ Sectores Defectuosos en Disco (/dev/sda I/O Error)</text>
+      <text x="16" y="42" fill="#fca5a5" font-size="11">Simula bloques dañados LBA en zona de tabla de particiones o sistema raíz.</text>
+      <rect x="445" y="20" width="44" height="24" rx="12" fill="#ef4444"/>
+      <circle cx="475" cy="32" r="9" fill="#ffffff"/>
+
+      <!-- RAM Bitflip Toggle -->
+      <g transform="translate(0, 74)">
+        <rect x="0" y="0" width="505" height="64" rx="8" fill="#450a0a" fill-opacity="0.3" stroke="#ef4444" stroke-width="1.5"/>
+        <text x="16" y="24" fill="#f87171" font-size="13" font-weight="700">💥 Inestabilidad de Memoria RAM (MCE / Kernel Panic)</text>
+        <text x="16" y="42" fill="#fca5a5" font-size="11">Simula fallo en bancos DDR sin ECC generando corrupción silenciosa.</text>
+        <rect x="445" y="20" width="44" height="24" rx="12" fill="#ef4444"/>
+        <circle cx="475" cy="32" r="9" fill="#ffffff"/>
+      </g>
+
+      <!-- Thermal Throttling Toggle -->
+      <g transform="translate(0, 148)">
+        <rect x="0" y="0" width="505" height="64" rx="8" fill="#0f172a" stroke="#334155"/>
+        <text x="16" y="24" fill="#94a3b8" font-size="13" font-weight="600">🔥 Sobrecalentamiento y Throttling de CPU (&gt; 98°C)</text>
+        <text x="16" y="42" fill="#64748b" font-size="11">Reduce dramáticamente el reloj de CPU simulando colapso térmico.</text>
+        <rect x="445" y="20" width="44" height="24" rx="12" fill="#334155"/>
+        <circle cx="455" cy="32" r="9" fill="#94a3b8"/>
+      </g>
+
+      <!-- Network Interface Disconnect -->
+      <g transform="translate(0, 222)">
+        <rect x="0" y="0" width="505" height="64" rx="8" fill="#0f172a" stroke="#334155"/>
+        <text x="16" y="24" fill="#94a3b8" font-size="13" font-weight="600">🌐 Caída de Interfaz de Red (eth0 Link Down)</text>
+        <text x="16" y="42" fill="#64748b" font-size="11">Corta conectividad impidiendo descarga de espejos APT y llaves GPG.</text>
+        <rect x="445" y="20" width="44" height="24" rx="12" fill="#334155"/>
+        <circle cx="455" cy="32" r="9" fill="#94a3b8"/>
+      </g>
+    </g>
+
+    <!-- Bottom Diagnostic Feedback Box -->
+    <g transform="translate(24, 426)">
+      <rect x="0" y="0" width="505" height="80" rx="8" fill="#18181b" stroke="#27272a"/>
+      <text x="16" y="22" fill="#fbbf24" font-size="12" font-weight="700">🔎 Diagnóstico del Validador Formativo:</text>
+      <text x="16" y="42" fill="#f87171" font-size="11">• Error Crítico: Se detectaron sectores defectuosos en bloque LBA 0x04F2. El instalador fallará al escribir superbloque ext4.</text>
+      <text x="16" y="60" fill="#f87171" font-size="11">• Advertencia MCE: Inestabilidad de RAM puede corromper initramfs durante dracut o update-initramfs.</text>
+    </g>
+  </g>
+</svg>

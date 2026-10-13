@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="100%" height="100%" style="background:#030712; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="40%" stop-color="#090d16"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="accentGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="30" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="360" fill="url(#bannerBg)"/>
+  
+  <!-- Subtle decorative grid & background glow circles -->
+  <circle cx="200" cy="180" r="160" fill="#3b82f6" fill-opacity="0.12" filter="url(#glow)"/>
+  <circle cx="1000" cy="180" r="140" fill="#8b5cf6" fill-opacity="0.1" filter="url(#glow)"/>
+
+  <!-- Border -->
+  <rect x="0" y="0" width="1200" height="360" fill="none" stroke="#1e293b" stroke-width="2"/>
+
+  <!-- Logo and App Identity Container -->
+  <g transform="translate(60, 50)">
+    <!-- Ghost Icon Card -->
+    <rect width="90" height="90" rx="20" fill="#0f172a" stroke="#38bdf8" stroke-width="2" filter="url(#glow)"/>
+    <g transform="translate(20, 20)">
+      <!-- Ghost Shape -->
+      <path d="M 25 5 C 12 5 3 15 3 28 L 3 44 C 3 45 4 46 6 45 L 12 40 L 18 45 L 25 40 L 32 45 L 38 40 L 44 45 C 46 46 47 45 47 44 L 47 28 C 47 15 38 5 25 5 Z" fill="#38bdf8" fill-opacity="0.9"/>
+      <!-- Eyes -->
+      <circle cx="17" cy="22" r="3.5" fill="#090d16"/>
+      <circle cx="33" cy="22" r="3.5" fill="#090d16"/>
+      <circle cx="18" cy="21" r="1.2" fill="#ffffff"/>
+      <circle cx="34" cy="21" r="1.2" fill="#ffffff"/>
+    </g>
+
+    <!-- Brand Badge -->
+    <g transform="translate(115, 6)">
+      <rect width="210" height="26" rx="13" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+      <text x="14" y="17" fill="#a5b4fc" font-size="11" font-weight="700" letter-spacing="0.5">UN FANTASMA EN EL SISTEMA</text>
+    </g>
+
+    <!-- Main Title -->
+    <text x="115" y="60" fill="url(#accentGlow)" font-size="36" font-weight="800" letter-spacing="-1">Simulador de Instalación de SO</text>
+    <text x="115" y="85" fill="#e2e8f0" font-size="16" font-weight="500">Aprende Particionado Avanzado, Gestión de Hardware y Sistemas de Archivos en Linux y Windows Server</text>
+  </g>
+
+  <!-- Feature Pills / Badges -->
+  <g transform="translate(60, 180)">
+    <!-- Pill 1: Recharts -->
+    <rect x="0" y="0" width="220" height="42" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+    <text x="16" y="26" fill="#38bdf8" font-size="13" font-weight="700">📊 Recharts Stacked Bar</text>
+
+    <!-- Pill 2: Chaos Engineering -->
+    <rect x="235" y="0" width="240" height="42" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+    <text x="16" y="26" fill="#c084fc" font-size="13" font-weight="700" transform="translate(235, 0)">⚡ Inyección de Fallos de HW</text>
+
+    <!-- Pill 3: Theme Switcher -->
+    <rect x="490" y="0" width="200" height="42" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+    <text x="16" y="26" fill="#fbbf24" font-size="13" font-weight="700" transform="translate(490, 0)">🌗 Tema Claro / Oscuro</text>
+
+    <!-- Pill 4: LVM & LUKS -->
+    <rect x="705" y="0" width="200" height="42" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+    <text x="16" y="26" fill="#34d399" font-size="13" font-weight="700" transform="translate(705, 0)">🔒 LVM2 &amp; LUKS2 Argon2id</text>
+
+    <!-- Pill 5: Real-time Validator -->
+    <rect x="920" y="0" width="215" height="42" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+    <text x="16" y="26" fill="#f87171" font-size="13" font-weight="700" transform="translate(920, 0)">🧠 Foco Formativo en Vivo</text>
+  </g>
+
+  <!-- Bottom Tech Bar -->
+  <g transform="translate(60, 260)">
+    <rect width="1075" height="60" rx="10" fill="#0b1329" stroke="#1e293b"/>
+    <text x="24" y="35" fill="#64748b" font-size="12" font-weight="600">TECNOLOGÍAS:</text>
+    <text x="130" y="35" fill="#e2e8f0" font-size="13" font-weight="600">React 19 • TypeScript • Vite 8 • Tailwind CSS 4 • Recharts • Lucide Icons • Motion</text>
+    <rect x="910" y="14" width="145" height="32" rx="6" fill="#2563eb"/>
+    <text x="926" y="34" fill="#ffffff" font-size="12" font-weight="700">⭐ Listo para GitHub</text>
+  </g>
+</svg>

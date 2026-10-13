@@ -1,0 +1,6 @@
+{
+  "name": "Simulador de Instalación de Sistemas Operativos",
+  "description": "Simulador formativo interactivo de instalación de Linux y Windows Server con particionado avanzado, ext4/XFS/Btrfs, LVM, LUKS y análisis de repercusiones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

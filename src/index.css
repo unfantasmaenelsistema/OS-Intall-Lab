@@ -145,3 +145,8 @@ html.light .shadow-xl {
 [data-terminal="true"] .text-white {
   color: #ffffff !important;
 }
+
+/* Contraseñas del laboratorio: se ocultan con puntos, pero no son campos de contraseña del navegador */
+input[data-secret="true"] {
+  -webkit-text-security: disc;
+}

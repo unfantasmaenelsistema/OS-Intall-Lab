@@ -280,7 +280,10 @@ export const PartitioningStep: React.FC<PartitioningStepProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 text-[11px]">Contraseña de cifrado:</span>
                   <input
-                    type="password"
+                    type="text"
+                    autoComplete="off"
+                    spellCheck={false}
+                    data-secret="true"
                     value={diskEncryptionPassphrase}
                     onChange={(e) => onChangeEncryption(true, e.target.value)}
                     placeholder="Contraseña robusta de disco"

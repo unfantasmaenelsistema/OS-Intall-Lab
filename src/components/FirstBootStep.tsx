@@ -371,7 +371,10 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
 
           <form onSubmit={handleUnlockLuks} className="space-y-4">
             <input
-              type="password"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              data-secret="true"
               autoFocus
               value={enteredPassphrase}
               onChange={(e) => setEnteredPassphrase(e.target.value)}
@@ -701,7 +704,10 @@ export const FirstBootStep: React.FC<FirstBootStepProps> = ({
               <div>
                 <label className="text-slate-400 block mb-1">Contraseña:</label>
                 <input
-                  type="password"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  data-secret="true"
                   autoFocus
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}

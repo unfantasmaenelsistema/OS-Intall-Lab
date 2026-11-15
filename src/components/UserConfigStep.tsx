@@ -100,7 +100,10 @@ export const UserConfigStep: React.FC<UserConfigStepProps> = ({
             <div>
               <label className="text-xs text-slate-400 block mb-1">Contraseña de root:</label>
               <input
-                type="password"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                data-secret="true"
                 value={config.rootPassword}
                 onChange={(e) => onChange({ rootPassword: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-rose-400"
@@ -158,7 +161,10 @@ export const UserConfigStep: React.FC<UserConfigStepProps> = ({
             <div>
               <label className="text-xs text-slate-400 block mb-1">Contraseña:</label>
               <input
-                type="password"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                data-secret="true"
                 value={config.adminPassword}
                 onChange={(e) => onChange({ adminPassword: e.target.value })}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
